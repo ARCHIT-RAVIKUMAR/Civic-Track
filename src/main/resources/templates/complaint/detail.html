@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Complaint')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main class="container py-4">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="row g-4">
+        <!-- LEFT: details + actions -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                        <h1 class="h4 mb-0" th:text="${complaint.title}">Title</h1>
+                        <div>
+                            <span class="badge fs-6" th:classappend="'text-bg-' + ${complaint.status.badgeClass}"
+                                  th:text="${complaint.status.label}">Status</span>
+                            <span class="badge fs-6" th:classappend="'text-bg-' + ${complaint.priority.badgeClass}"
+                                  th:text="${complaint.priority.label} + ' priority'">Priority</span>
+                        </div>
+                    </div>
+                    <p class="text-muted small mt-2 mb-3">
+                        <span th:text="${complaint.category.name}">Category</span> &middot;
+                        reported by <span th:text="${complaint.citizen.fullName}">Citizen</span> on
+                        <span th:text="${complaint.createdAtDisplay}">Date</span>
+                    </p>
+                    <p style="white-space: pre-line;" th:text="${complaint.description}">Description</p>
+                    <p class="mb-2"><strong>Location:</strong> <span th:text="${complaint.location}">Location</span></p>
+                    <p class="mb-2" th:if="${assignment != null}">
+                        <strong>Assigned to:</strong> <span th:text="${assignment.worker.fullName}">Worker</span>
+                    </p>
+                    <div class="alert alert-danger" th:if="${complaint.rejectionReason != null}">
+                        <strong>Rejected:</strong> <span th:text="${complaint.rejectionReason}">Reason</span>
+                    </div>
+                    <img class="complaint-image mt-2" th:if="${complaint.hasImage()}"
+                         th:src="@{/complaints/{id}/image(id=${complaint.id})}" alt="Photo submitted with the complaint">
+                </div>
+            </div>
+
+            <!-- Feedback -->
+            <div class="card shadow-sm mb-4" th:if="${feedback != null}">
+                <div class="card-body">
+                    <h2 class="h6">Citizen feedback</h2>
+                    <p class="mb-1">Rating: <strong th:text="${feedback.rating} + ' / 5'">5 / 5</strong></p>
+                    <p class="mb-0 text-muted" th:if="${feedback.comments != null}" th:text="${feedback.comments}">Comments</p>
+                </div>
+            </div>
+            <div class="mb-4" th:if="${canFeedback}">
+                <a class="btn btn-success" th:href="@{/citizen/complaints/{id}/feedback(id=${complaint.id})}">Give feedback</a>
+            </div>
+
+            <!-- AUTHORITY actions -->
+            <div class="card shadow-sm mb-4" th:if="${viewerRole == 'AUTHORITY'}">
+                <div class="card-body">
+                    <h2 class="h6">Authority actions</h2>
+
+                    <form th:if="${complaint.status.name() == 'SUBMITTED'}"
+                          th:action="@{/authority/complaints/{id}/review(id=${complaint.id})}" method="post" class="mb-3">
+                        <button class="btn btn-info" type="submit">Start review</button>
+                    </form>
+
+                    <a th:if="${complaint.status.name() == 'UNDER_REVIEW' or complaint.status.name() == 'ASSIGNED'}"
+                       class="btn btn-primary mb-3" th:href="@{/authority/complaints/{id}/assign(id=${complaint.id})}"
+                       th:text="${complaint.status.name() == 'ASSIGNED'} ? 'Re-assign worker' : 'Assign to a field worker'">Assign</a>
+
+                    <form th:unless="${complaint.status.terminal}"
+                          th:action="@{/authority/complaints/{id}/priority(id=${complaint.id})}" method="post"
+                          class="row g-2 align-items-end mb-3">
+                        <div class="col-auto">
+                            <label for="priority" class="form-label small mb-0">Priority</label>
+                            <select class="form-select form-select-sm" id="priority" name="priority">
+                                <option th:each="p : ${T(com.civictrack.enums.Priority).values()}"
+                                        th:value="${p.name()}" th:text="${p.label}"
+                                        th:selected="${p == complaint.priority}">Medium</option>
+                            </select>
+                        </div>
+                        <div class="col-auto"><button class="btn btn-sm btn-outline-secondary" type="submit">Update</button></div>
+                    </form>
+
+                    <form th:if="${complaint.status.name() == 'RESOLVED'}"
+                          th:action="@{/authority/complaints/{id}/close(id=${complaint.id})}" method="post" class="mb-3">
+                        <label for="closeNotes" class="form-label small mb-0">Verification note (optional)</label>
+                        <input class="form-control form-control-sm mb-2" type="text" id="closeNotes" name="notes" maxlength="500">
+                        <button class="btn btn-success" type="submit">Verify and close</button>
+                    </form>
+
+                    <form th:if="${complaint.status.name() == 'RESOLVED'}"
+                          th:action="@{/authority/complaints/{id}/send-back(id=${complaint.id})}" method="post" class="mb-3">
+                        <label for="sendBackNotes" class="form-label small mb-0">Work not satisfactory? Explain what is left</label>
+                        <input class="form-control form-control-sm mb-2" type="text" id="sendBackNotes" name="notes" maxlength="500" required>
+                        <button class="btn btn-warning" type="submit">Send back to worker</button>
+                    </form>
+
+                    <form th:if="${complaint.status.name() == 'SUBMITTED' or complaint.status.name() == 'UNDER_REVIEW'}"
+                          th:action="@{/authority/complaints/{id}/reject(id=${complaint.id})}" method="post">
+                        <label for="reason" class="form-label small mb-0">Reject (invalid or duplicate) - reason required</label>
+                        <input class="form-control form-control-sm mb-2" type="text" id="reason" name="reason" maxlength="400" required>
+                        <button class="btn btn-outline-danger" type="submit">Reject complaint</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- FIELD WORKER actions -->
+            <div class="card shadow-sm mb-4" th:if="${viewerRole == 'FIELD_WORKER'}">
+                <div class="card-body">
+                    <h2 class="h6">Work actions</h2>
+
+                    <form th:if="${complaint.status.name() == 'ASSIGNED'}"
+                          th:action="@{/worker/complaints/{id}/start(id=${complaint.id})}" method="post" class="mb-3">
+                        <button class="btn btn-warning" type="submit">Start work</button>
+                    </form>
+
+                    <form th:if="${complaint.status.name() == 'ASSIGNED' or complaint.status.name() == 'IN_PROGRESS'}"
+                          th:action="@{/worker/complaints/{id}/note(id=${complaint.id})}" method="post" class="mb-3">
+                        <label for="note" class="form-label small mb-0">Progress note</label>
+                        <textarea class="form-control mb-2" id="note" name="note" rows="2" maxlength="900" required></textarea>
+                        <button class="btn btn-outline-primary" type="submit">Add note</button>
+                    </form>
+
+                    <form th:if="${complaint.status.name() == 'IN_PROGRESS'}"
+                          th:action="@{/worker/complaints/{id}/resolve(id=${complaint.id})}" method="post">
+                        <label for="resolveNote" class="form-label small mb-0">Completion note (optional)</label>
+                        <input class="form-control form-control-sm mb-2" type="text" id="resolveNote" name="note" maxlength="500">
+                        <button class="btn btn-success" type="submit">Mark as completed</button>
+                    </form>
+
+                    <p class="text-muted mb-0" th:if="${complaint.status.name() == 'RESOLVED'}">
+                        Marked as completed. Waiting for the authority to verify.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT: timeline -->
+        <div class="col-lg-5">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6 mb-3">Status history</h2>
+                    <ul class="timeline mb-0">
+                        <li th:each="h : ${history}">
+                            <div>
+                                <span class="badge" th:classappend="'text-bg-' + ${h.newStatus.badgeClass}"
+                                      th:text="${h.newStatus.label}">Status</span>
+                                <span class="text-muted small" th:if="${h.oldStatus != null and h.oldStatus != h.newStatus}"
+                                      th:text="'from ' + ${h.oldStatus.label}">from X</span>
+                            </div>
+                            <div class="small" th:if="${h.notes != null}" th:text="${h.notes}">Notes</div>
+                            <div class="text-muted small">
+                                <span th:text="${h.changedBy.fullName}">User</span> &middot;
+                                <span th:text="${h.createdAtDisplay}">Date</span>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4"><a class="btn btn-outline-secondary" th:href="@{/dashboard}">&larr; Back to dashboard</a></div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

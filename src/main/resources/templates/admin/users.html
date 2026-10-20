@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Manage users')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main class="container py-4">
+    <h1 class="h3 mb-3">Manage users</h1>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <form th:action="@{/admin/users}" th:object="${userForm}" method="post" class="card card-body shadow-sm" novalidate>
+                <h2 class="h6">Create a staff account</h2>
+                <div class="mb-3">
+                    <label for="fullName" class="form-label">Full name</label>
+                    <input type="text" class="form-control" id="fullName" th:field="*{fullName}"
+                           th:classappend="${#fields.hasErrors('fullName')} ? 'is-invalid'">
+                    <div class="invalid-feedback" th:errors="*{fullName}"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" class="form-control" id="email" th:field="*{email}"
+                           th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'">
+                    <div class="invalid-feedback" th:errors="*{email}"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Temporary password</label>
+                    <input type="password" class="form-control" id="password" th:field="*{password}"
+                           th:classappend="${#fields.hasErrors('password')} ? 'is-invalid'" autocomplete="new-password">
+                    <div class="invalid-feedback" th:errors="*{password}"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="role" class="form-label">Role</label>
+                    <select class="form-select" id="role" th:field="*{role}"
+                            th:classappend="${#fields.hasErrors('role')} ? 'is-invalid'">
+                        <option value="">-- choose --</option>
+                        <option th:each="r : ${roles}" th:value="${r.name()}" th:text="${r.label}">Role</option>
+                    </select>
+                    <div class="invalid-feedback" th:errors="*{role}"></div>
+                </div>
+                <button type="submit" class="btn btn-primary">Create user</button>
+            </form>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="table-responsive card shadow-sm">
+                <table class="table align-middle mb-0">
+                    <thead class="table-light"><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                    <tr th:each="u : ${users}">
+                        <td th:text="${u.fullName}">Name</td>
+                        <td th:text="${u.email}">email</td>
+                        <td>
+                            <form th:action="@{/admin/users/{id}/role(id=${u.id})}" method="post" class="d-flex gap-1">
+                                <label class="visually-hidden" th:for="'role-' + ${u.id}">Role for <span th:text="${u.fullName}"></span></label>
+                                <select class="form-select form-select-sm" name="role" th:id="'role-' + ${u.id}">
+                                    <option th:each="r : ${roles}" th:value="${r.name()}" th:text="${r.label}"
+                                            th:selected="${r == u.role}">Role</option>
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+                            </form>
+                        </td>
+                        <td><span class="badge" th:classappend="${u.enabled} ? 'text-bg-success' : 'text-bg-secondary'"
+                                  th:text="${u.enabled} ? 'Active' : 'Disabled'">Active</span></td>
+                        <td>
+                            <form th:action="@{/admin/users/{id}/toggle(id=${u.id})}" method="post">
+                                <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                        th:text="${u.enabled} ? 'Disable' : 'Enable'">Disable</button>
+                            </form>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

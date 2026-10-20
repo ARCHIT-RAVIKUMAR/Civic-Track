@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('My assignments')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main class="container py-4">
+    <h1 class="h3 mb-3">My assignments</h1>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="card card-body text-center py-5" th:if="${#lists.isEmpty(complaints)}">
+        <p class="mb-1 fs-5">Nothing assigned to you right now.</p>
+        <p class="text-muted mb-0">New work will appear here when an authority assigns it.</p>
+    </div>
+
+    <div class="table-responsive card shadow-sm" th:unless="${#lists.isEmpty(complaints)}">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+            <tr><th>Title</th><th>Location</th><th>Priority</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="c : ${complaints}">
+                <td th:text="${c.title}">Title</td>
+                <td th:text="${c.location}">Location</td>
+                <td><span class="badge" th:classappend="'text-bg-' + ${c.priority.badgeClass}" th:text="${c.priority.label}">Priority</span></td>
+                <td><span class="badge" th:classappend="'text-bg-' + ${c.status.badgeClass}" th:text="${c.status.label}">Status</span></td>
+                <td><a class="btn btn-sm btn-outline-primary" th:href="@{/complaints/{id}(id=${c.id})}">Open</a></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

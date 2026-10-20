@@ -1,0 +1,21 @@
+# Build output
+target/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets and local config: NEVER commit these
+.env
+*.env
+!.env.example
+application-local.properties
+
+# Logs and uploads
+*.log
+uploads/

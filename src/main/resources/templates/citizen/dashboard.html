@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('My complaints')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">My complaints</h1>
+        <a class="btn btn-primary" th:href="@{/citizen/complaints/new}">Report a new issue</a>
+    </div>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="card card-body text-center py-5" th:if="${#lists.isEmpty(complaints)}">
+        <p class="mb-2 fs-5">You have not reported anything yet.</p>
+        <p class="text-muted">Spotted a pothole, garbage pile or broken streetlight? Report it and track the fix.</p>
+        <div><a class="btn btn-primary" th:href="@{/citizen/complaints/new}">Report an issue</a></div>
+    </div>
+
+    <div class="table-responsive card shadow-sm" th:unless="${#lists.isEmpty(complaints)}">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+            <tr><th>Title</th><th>Category</th><th>Status</th><th>Submitted</th><th></th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="c : ${complaints}">
+                <td th:text="${c.title}">Title</td>
+                <td th:text="${c.category.name}">Category</td>
+                <td><span class="badge" th:classappend="'text-bg-' + ${c.status.badgeClass}" th:text="${c.status.label}">Status</span></td>
+                <td th:text="${c.createdAtDisplay}">Date</td>
+                <td><a class="btn btn-sm btn-outline-primary" th:href="@{/complaints/{id}(id=${c.id})}">View</a></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

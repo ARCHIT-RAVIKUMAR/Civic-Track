@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Home')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+
+<main class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="display-5 fw-bold">Report. Track. Resolve.</h1>
+        <p class="lead text-muted">Help your city fix potholes, garbage, streetlights, and more.</p>
+        <div sec:authorize="isAnonymous()" class="mt-4">
+            <a class="btn btn-primary btn-lg me-2" th:href="@{/register}">Get started</a>
+            <a class="btn btn-outline-primary btn-lg" th:href="@{/login}">Log in</a>
+        </div>
+        <div sec:authorize="isAuthenticated()" class="mt-4">
+            <a class="btn btn-primary btn-lg" th:href="@{/dashboard}">Go to my dashboard</a>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm"><div class="card-body">
+                <h2 class="h5">Citizens</h2>
+                <p class="text-muted mb-0">Report problems with a photo and location, then follow their progress step by step.</p>
+            </div></div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm"><div class="card-body">
+                <h2 class="h5">Authorities</h2>
+                <p class="text-muted mb-0">Review, prioritize, assign and verify complaints from one dashboard.</p>
+            </div></div>
+        </div>
+        <div class="col-md-4">
+            <div class="card h-100 shadow-sm"><div class="card-body">
+                <h2 class="h5">Field Workers</h2>
+                <p class="text-muted mb-0">See assigned work, add progress notes and mark jobs as completed.</p>
+            </div></div>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

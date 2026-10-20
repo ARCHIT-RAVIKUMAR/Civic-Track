@@ -1,0 +1,8 @@
+body { background-color: #f5f7fa; }
+.navbar-brand { letter-spacing: .5px; }
+.timeline { list-style: none; padding-left: 0; border-left: 3px solid #0d6efd; margin-left: .5rem; }
+.timeline li { position: relative; padding: 0 0 1.25rem 1.25rem; }
+.timeline li::before { content: ""; position: absolute; left: -9px; top: 4px; width: 15px; height: 15px;
+  border-radius: 50%; background: #fff; border: 3px solid #0d6efd; }
+.complaint-image { max-width: 100%; max-height: 320px; border-radius: .5rem; }
+.stat-card .display-6 { font-weight: 700; }

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Report an issue')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main class="container py-4" style="max-width: 720px;">
+    <h1 class="h3 mb-3">Report a civic issue</h1>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <form th:action="@{/citizen/complaints}" th:object="${complaintForm}" method="post"
+          enctype="multipart/form-data" class="card card-body shadow-sm" novalidate>
+        <div class="mb-3">
+            <label for="title" class="form-label">Title</label>
+            <input type="text" class="form-control" id="title" th:field="*{title}"
+                   th:classappend="${#fields.hasErrors('title')} ? 'is-invalid'">
+            <div class="invalid-feedback" th:errors="*{title}"></div>
+        </div>
+        <div class="mb-3">
+            <label for="categoryId" class="form-label">Category</label>
+            <select class="form-select" id="categoryId" th:field="*{categoryId}"
+                    th:classappend="${#fields.hasErrors('categoryId')} ? 'is-invalid'">
+                <option value="">-- choose a category --</option>
+                <option th:each="cat : ${categories}" th:value="${cat.id}" th:text="${cat.name}">Category</option>
+            </select>
+            <div class="invalid-feedback" th:errors="*{categoryId}"></div>
+        </div>
+        <div class="mb-3">
+            <label for="description" class="form-label">Description</label>
+            <textarea class="form-control" id="description" rows="4" th:field="*{description}"
+                      th:classappend="${#fields.hasErrors('description')} ? 'is-invalid'"></textarea>
+            <div class="invalid-feedback" th:errors="*{description}"></div>
+        </div>
+        <div class="mb-3">
+            <label for="location" class="form-label">Location (street, landmark, area)</label>
+            <input type="text" class="form-control" id="location" th:field="*{location}"
+                   th:classappend="${#fields.hasErrors('location')} ? 'is-invalid'">
+            <div class="invalid-feedback" th:errors="*{location}"></div>
+        </div>
+        <div class="mb-3">
+            <label for="image" class="form-label">Photo (optional, JPEG or PNG, max 2 MB)</label>
+            <input type="file" class="form-control" id="image" name="image" accept="image/jpeg,image/png">
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Submit complaint</button>
+            <a class="btn btn-outline-secondary" th:href="@{/citizen/dashboard}">Cancel</a>
+        </div>
+    </form>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

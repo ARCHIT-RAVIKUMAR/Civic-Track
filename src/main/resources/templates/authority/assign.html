@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Assign complaint')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main class="container py-4" style="max-width: 640px;">
+    <h1 class="h3 mb-1">Assign complaint</h1>
+    <p class="text-muted" th:text="${complaint.title}">Title</p>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <p th:if="${assignment != null}">Currently assigned to
+        <strong th:text="${assignment.worker.fullName}">Worker</strong>.</p>
+
+    <div class="alert alert-warning" th:if="${#lists.isEmpty(workers)}">
+        There are no active field workers yet. Ask an administrator to create one.
+    </div>
+
+    <form th:unless="${#lists.isEmpty(workers)}"
+          th:action="@{/authority/complaints/{id}/assign(id=${complaint.id})}" method="post"
+          class="card card-body shadow-sm">
+        <div class="mb-3">
+            <label for="workerId" class="form-label">Field worker</label>
+            <select class="form-select" id="workerId" name="workerId" required>
+                <option value="">-- choose a worker --</option>
+                <option th:each="w : ${workers}" th:value="${w.id}" th:text="${w.fullName} + ' (' + ${w.email} + ')'">Worker</option>
+            </select>
+        </div>
+        <div class="mb-3">
+            <label for="notes" class="form-label">Instructions (optional)</label>
+            <textarea class="form-control" id="notes" name="notes" rows="3" maxlength="900"></textarea>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Assign</button>
+            <a class="btn btn-outline-secondary" th:href="@{/complaints/{id}(id=${complaint.id})}">Cancel</a>
+        </div>
+    </form>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title} + ' | CivicTrack'">CivicTrack</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+
+<nav th:fragment="navbar" class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container">
+        <a class="navbar-brand fw-bold" th:href="@{/}">CivicTrack</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="mainNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item" sec:authorize="hasRole('CITIZEN')">
+                    <a class="nav-link" th:href="@{/citizen/dashboard}">My Complaints</a></li>
+                <li class="nav-item" sec:authorize="hasRole('CITIZEN')">
+                    <a class="nav-link" th:href="@{/citizen/complaints/new}">Report an Issue</a></li>
+                <li class="nav-item" sec:authorize="hasRole('AUTHORITY')">
+                    <a class="nav-link" th:href="@{/authority/dashboard}">All Complaints</a></li>
+                <li class="nav-item" sec:authorize="hasRole('FIELD_WORKER')">
+                    <a class="nav-link" th:href="@{/worker/dashboard}">My Assignments</a></li>
+                <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                    <a class="nav-link" th:href="@{/admin/dashboard}">Overview</a></li>
+                <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                    <a class="nav-link" th:href="@{/admin/users}">Users</a></li>
+                <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                    <a class="nav-link" th:href="@{/admin/categories}">Categories</a></li>
+            </ul>
+            <ul class="navbar-nav align-items-lg-center gap-lg-2">
+                <li class="nav-item" sec:authorize="isAnonymous()">
+                    <a class="nav-link" th:href="@{/login}">Log in</a></li>
+                <li class="nav-item" sec:authorize="isAnonymous()">
+                    <a class="btn btn-light btn-sm" th:href="@{/register}">Register</a></li>
+                <li class="nav-item text-white small" sec:authorize="isAuthenticated()">
+                    <span sec:authentication="name">user</span></li>
+                <li class="nav-item" sec:authorize="isAuthenticated()">
+                    <form th:action="@{/logout}" method="post" class="d-inline">
+                        <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>
+                    </form>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div th:fragment="flash">
+    <div class="alert alert-success" role="alert" th:if="${success}" th:text="${success}"></div>
+    <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
+</div>
+
+<footer th:fragment="footer" class="text-center text-muted small py-4 mt-5">
+    CivicTrack &middot; College demonstration project
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</footer>
+
+</body>
+</html>
