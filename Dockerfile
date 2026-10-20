@@ -16,4 +16,4 @@ USER appuser
 ENV SPRING_PROFILES_ACTIVE=prod
 EXPOSE 8080
 # The app reads PORT (Render sets it) and binds to all interfaces by default.
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xmx300m", "-XX:+UseSerialGC", "-Xss512k", "-XX:MaxMetaspaceSize=128m", "-jar", "app.jar"]

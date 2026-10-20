@@ -1,15 +1,34 @@
 package com.civictrack.controller;
 
+import com.civictrack.enums.ComplaintStatus;
+import com.civictrack.service.ComplaintService;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
+import java.util.Map;
+
 @Controller
 public class HomeController {
 
+    private final ComplaintService complaintService;
+
+    public HomeController(ComplaintService complaintService) {
+        this.complaintService = complaintService;
+    }
+
     @GetMapping("/")
-    public String home() {
+    public String home(Model model) {
+        Map<ComplaintStatus, Long> counts = complaintService.countByStatus();
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        long resolved = counts.getOrDefault(ComplaintStatus.RESOLVED, 0L)
+                + counts.getOrDefault(ComplaintStatus.CLOSED, 0L);
+        long inProgress = counts.getOrDefault(ComplaintStatus.IN_PROGRESS, 0L)
+                + counts.getOrDefault(ComplaintStatus.ASSIGNED, 0L);
+        model.addAttribute("totalReported", total);
+        model.addAttribute("totalResolved", resolved);
+        model.addAttribute("totalInProgress", inProgress);
         return "index";
     }
 
