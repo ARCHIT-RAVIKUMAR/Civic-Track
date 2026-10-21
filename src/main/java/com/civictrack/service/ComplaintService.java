@@ -23,7 +23,13 @@ public interface ComplaintService {
     // citizen
     Complaint submit(ComplaintForm form, MultipartFile image, User citizen);
 
-    List<Complaint> findForCitizen(User citizen);
+    Page<Complaint> findForCitizen(User citizen, int page, int size);
+
+    /** Open complaints of the same category with a similar location (reported in the last 30 days). */
+    List<Complaint> findPossibleDuplicates(ComplaintForm form, User citizen);
+
+    /** A citizen cancels their own complaint before it is assigned. */
+    void withdraw(UUID id, User actor);
 
     // any role (access is checked inside)
     Complaint getForViewer(UUID complaintId, User viewer);

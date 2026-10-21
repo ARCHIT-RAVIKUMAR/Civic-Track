@@ -17,6 +17,10 @@ public interface AssignmentRepository extends JpaRepository<Assignment, UUID> {
 
     boolean existsByComplaintAndWorkerAndActiveTrue(Complaint complaint, User worker);
 
+    boolean existsByWorker(User worker);
+
+    boolean existsByAssignedBy(User assignedBy);
+
     @Query("select a.complaint from Assignment a where a.worker = :worker and a.active = true order by a.createdAt desc")
     List<Complaint> findComplaintsForWorker(@Param("worker") User worker);
 }

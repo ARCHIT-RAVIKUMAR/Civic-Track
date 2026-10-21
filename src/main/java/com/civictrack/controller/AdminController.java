@@ -91,6 +91,29 @@ public class AdminController {
         return "redirect:/admin/users";
     }
 
+    @PostMapping("/users/{id}/name")
+    public String renameUser(@PathVariable UUID id, @RequestParam String fullName,
+                             Authentication auth, RedirectAttributes redirect) {
+        try {
+            userService.updateName(id, fullName, admin(auth));
+            redirect.addFlashAttribute("success", "Name updated.");
+        } catch (BusinessRuleException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/admin/users";
+    }
+
+    @PostMapping("/users/{id}/delete")
+    public String deleteUser(@PathVariable UUID id, Authentication auth, RedirectAttributes redirect) {
+        try {
+            userService.deleteUser(id, admin(auth));
+            redirect.addFlashAttribute("success", "User deleted.");
+        } catch (BusinessRuleException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/admin/users";
+    }
+
     @PostMapping("/users/{id}/toggle")
     public String toggleUser(@PathVariable UUID id, Authentication auth, RedirectAttributes redirect) {
         try {

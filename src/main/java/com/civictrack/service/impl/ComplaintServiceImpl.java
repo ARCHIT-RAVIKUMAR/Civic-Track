@@ -22,6 +22,8 @@ import com.civictrack.service.ComplaintService;
 import com.civictrack.service.FileStorageService;
 import com.civictrack.service.NotificationService;
 import com.civictrack.service.UserService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -30,19 +32,30 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * The heart of CivicTrack: all complaint business rules live here.
  * COMPOSITION: this class does little itself; it coordinates repositories and other services.
+ * POLYMORPHISM: it receives EVERY NotificationService implementation (in-app, log, e-mail ...)
+ * and calls them all the same way.
  */
 @Service
 @Transactional
 public class ComplaintServiceImpl implements ComplaintService {
+
+    private static final Logger log = LoggerFactory.getLogger(ComplaintServiceImpl.class);
+
+    private static final Set<ComplaintStatus> OPEN_STATUSES = EnumSet.of(
+            ComplaintStatus.SUBMITTED, ComplaintStatus.UNDER_REVIEW,
+            ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS);
 
     private final ComplaintRepository complaintRepository;
     private final AssignmentRepository assignmentRepository;
@@ -50,7 +63,7 @@ public class ComplaintServiceImpl implements ComplaintService {
     private final CategoryService categoryService;
     private final UserService userService;
     private final FileStorageService fileStorageService;
-    private final NotificationService notificationService; // interface: any implementation works
+    private final List<NotificationService> notifiers;
 
     public ComplaintServiceImpl(ComplaintRepository complaintRepository,
                                 AssignmentRepository assignmentRepository,
@@ -58,14 +71,14 @@ public class ComplaintServiceImpl implements ComplaintService {
                                 CategoryService categoryService,
                                 UserService userService,
                                 FileStorageService fileStorageService,
-                                NotificationService notificationService) {
+                                List<NotificationService> notifiers) {
         this.complaintRepository = complaintRepository;
         this.assignmentRepository = assignmentRepository;
         this.historyRepository = historyRepository;
         this.categoryService = categoryService;
         this.userService = userService;
         this.fileStorageService = fileStorageService;
-        this.notificationService = notificationService;
+        this.notifiers = notifiers;
     }
 
     // ------------------------------------------------------------------ citizen
@@ -81,13 +94,45 @@ public class ComplaintServiceImpl implements ComplaintService {
         }
         complaintRepository.save(complaint);
         recordHistory(complaint, null, ComplaintStatus.SUBMITTED, citizen, "Complaint submitted");
+
+        // Tell the people who now have work to do
+        String subject = "New complaint reported: " + complaint.getTitle();
+        String message = category.getName() + " at " + complaint.getLocation();
+        notifyRole(Role.AUTHORITY, subject, message, complaint);
+        notifyRole(Role.ADMIN, subject, message, complaint);
         return complaint;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<Complaint> findForCitizen(User citizen) {
-        return complaintRepository.findByCitizenOrderByCreatedAtDesc(citizen);
+    public Page<Complaint> findForCitizen(User citizen, int page, int size) {
+        return complaintRepository.findByCitizen(citizen,
+                PageRequest.of(Math.max(page, 0), size, Sort.by(Sort.Direction.DESC, "createdAt")));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Complaint> findPossibleDuplicates(ComplaintForm form, User citizen) {
+        requireRole(citizen, Role.CITIZEN);
+        Category category = categoryService.getActiveById(form.getCategoryId());
+        LocalDateTime since = LocalDateTime.now().minusDays(30);
+        return complaintRepository.findByCategoryAndStatusInAndCreatedAtAfter(category, OPEN_STATUSES, since)
+                .stream()
+                .filter(c -> LocationSimilarity.isSimilar(c.getLocation(), form.getLocation()))
+                .limit(3)
+                .toList();
+    }
+
+    @Override
+    public void withdraw(UUID id, User actor) {
+        requireRole(actor, Role.CITIZEN);
+        Complaint complaint = findComplaint(id);
+        if (!complaint.isOwnedBy(actor)) {
+            throw new ForbiddenOperationException("You can only withdraw your own complaints.");
+        }
+        transition(complaint, ComplaintStatus.WITHDRAWN, actor, "Withdrawn by the citizen");
+        notifyRole(Role.AUTHORITY, "Complaint withdrawn: " + complaint.getTitle(),
+                "The citizen withdrew this complaint. No further action is needed.", complaint);
     }
 
     // ------------------------------------------------------------------ viewing
@@ -186,7 +231,7 @@ public class ComplaintServiceImpl implements ComplaintService {
         requireRole(actor, Role.AUTHORITY);
         Complaint complaint = findComplaint(id);
         if (complaint.getStatus().isTerminal()) {
-            throw new BusinessRuleException("The priority of a closed or rejected complaint cannot be changed.");
+            throw new BusinessRuleException("The priority of a closed, rejected or withdrawn complaint cannot be changed.");
         }
         complaint.changePriority(priority);
         complaintRepository.save(complaint);
@@ -220,8 +265,8 @@ public class ComplaintServiceImpl implements ComplaintService {
         } else {
             recordHistory(complaint, current, current, actor, "Re-assigned to " + worker.getFullName());
         }
-        notificationService.notifyUser(worker, "New assignment: " + complaint.getTitle(),
-                "A complaint has been assigned to you. Please log in to CivicTrack to view it.");
+        notifyUser(worker, "New assignment: " + complaint.getTitle(),
+                "A complaint at " + complaint.getLocation() + " has been assigned to you.", complaint);
     }
 
     @Override
@@ -239,6 +284,8 @@ public class ComplaintServiceImpl implements ComplaintService {
         }
         Complaint complaint = findComplaint(id);
         transition(complaint, ComplaintStatus.IN_PROGRESS, actor, "Sent back to worker: " + notes.trim());
+        assignmentRepository.findByComplaintAndActiveTrue(complaint).ifPresent(a ->
+                notifyUser(a.getWorker(), "Rework requested: " + complaint.getTitle(), notes.trim(), complaint));
     }
 
     // ------------------------------------------------------------------ field worker
@@ -274,6 +321,8 @@ public class ComplaintServiceImpl implements ComplaintService {
         Complaint complaint = findAssignedComplaint(id, actor);
         transition(complaint, ComplaintStatus.RESOLVED, actor,
                 blankToDefault(note, "Work completed - awaiting authority verification"));
+        notifyRole(Role.AUTHORITY, "Ready for verification: " + complaint.getTitle(),
+                actor.getFullName() + " marked the work as completed. Please verify and close it.", complaint);
     }
 
     // ------------------------------------------------------------------ statistics
@@ -326,14 +375,31 @@ public class ComplaintServiceImpl implements ComplaintService {
     private void afterTransition(Complaint complaint, ComplaintStatus old, User actor, String notes) {
         complaintRepository.save(complaint);
         recordHistory(complaint, old, complaint.getStatus(), actor, notes);
-        notificationService.notifyUser(complaint.getCitizen(),
+        notifyUser(complaint.getCitizen(),
                 "Update on your complaint: " + complaint.getTitle(),
-                "Your complaint status is now: " + complaint.getStatus().getLabel() + ".");
+                "Your complaint status is now: " + complaint.getStatus().getLabel() + ".", complaint);
     }
 
     private void recordHistory(Complaint complaint, ComplaintStatus old, ComplaintStatus next,
                                User actor, String notes) {
         historyRepository.save(new StatusHistory(complaint, old, next, actor, notes));
+    }
+
+    /** Sends one message through EVERY notification channel. A broken channel never breaks the workflow. */
+    private void notifyUser(User recipient, String subject, String message, Complaint complaint) {
+        for (NotificationService notifier : notifiers) {
+            try {
+                notifier.notifyUser(recipient, subject, message, complaint);
+            } catch (RuntimeException ex) {
+                log.warn("Notification via {} failed: {}", notifier.getClass().getSimpleName(), ex.getMessage());
+            }
+        }
+    }
+
+    private void notifyRole(Role role, String subject, String message, Complaint complaint) {
+        for (User recipient : userService.findActiveByRole(role)) {
+            notifyUser(recipient, subject, message, complaint);
+        }
     }
 
     private String blankToDefault(String value, String fallback) {

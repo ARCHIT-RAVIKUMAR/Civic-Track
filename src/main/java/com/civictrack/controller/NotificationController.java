@@ -1,0 +1,51 @@
+package com.civictrack.controller;
+
+import com.civictrack.entity.Notification;
+import com.civictrack.service.InboxService;
+import org.springframework.data.domain.Page;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.util.UUID;
+
+@Controller
+@RequestMapping("/notifications")
+public class NotificationController {
+
+    private static final int PAGE_SIZE = 15;
+
+    private final InboxService inboxService;
+
+    public NotificationController(InboxService inboxService) {
+        this.inboxService = inboxService;
+    }
+
+    @GetMapping
+    public String list(@RequestParam(defaultValue = "0") int page, Authentication auth, Model model) {
+        Page<Notification> results = inboxService.list(auth.getName(), page, PAGE_SIZE);
+        model.addAttribute("page", results);
+        return "notifications/list";
+    }
+
+    /** Marks the notification as read, then opens the related complaint (if any). */
+    @PostMapping("/{id}/open")
+    public String open(@PathVariable UUID id, Authentication auth) {
+        Notification notification = inboxService.markRead(id, auth.getName());
+        if (notification.getComplaint() != null) {
+            return "redirect:/complaints/" + notification.getComplaint().getId();
+        }
+        return "redirect:/notifications";
+    }
+
+    @PostMapping("/read-all")
+    public String readAll(Authentication auth) {
+        inboxService.markAllRead(auth.getName());
+        return "redirect:/notifications";
+    }
+}

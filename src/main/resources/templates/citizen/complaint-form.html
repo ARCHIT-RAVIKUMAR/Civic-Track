@@ -7,6 +7,19 @@
     <h1 class="h3 mb-3">Report a civic issue</h1>
     <div th:replace="~{fragments/layout :: flash}"></div>
 
+    <div class="alert alert-warning" role="alert" th:if="${duplicates != null and !#lists.isEmpty(duplicates)}">
+        <strong><i class="bi bi-exclamation-triangle"></i> Similar issues were already reported nearby:</strong>
+        <ul class="my-2">
+            <li th:each="d : ${duplicates}">
+                <span th:text="${d.category.name}">Category</span> &middot;
+                <span th:text="${d.status.label}">Status</span> &middot;
+                reported <span th:text="${d.createdAtDisplay}">Date</span>
+            </li>
+        </ul>
+        If this is the same problem, you do not need to report it again. If it is different, choose
+        <strong>Submit anyway</strong> below (select your photo again if you attached one).
+    </div>
+
     <form th:action="@{/citizen/complaints}" th:object="${complaintForm}" method="post"
           enctype="multipart/form-data" class="card card-body shadow-sm" novalidate>
         <div class="mb-3">
@@ -41,7 +54,10 @@
             <input type="file" class="form-control" id="image" name="image" accept="image/jpeg,image/png">
         </div>
         <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary">Submit complaint</button>
+            <button type="submit" class="btn btn-primary"
+                    th:unless="${duplicates != null and !#lists.isEmpty(duplicates)}">Submit complaint</button>
+            <button type="submit" name="confirmDuplicate" value="true" class="btn btn-warning"
+                    th:if="${duplicates != null and !#lists.isEmpty(duplicates)}">Submit anyway</button>
             <a class="btn btn-outline-secondary" th:href="@{/citizen/dashboard}">Cancel</a>
         </div>
     </form>

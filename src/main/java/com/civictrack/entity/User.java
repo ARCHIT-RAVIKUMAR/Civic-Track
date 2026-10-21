@@ -77,6 +77,20 @@ public class User extends BaseEntity {
         this.role = newRole;
     }
 
+    public void changePasswordHash(String newPasswordHash) {
+        if (newPasswordHash == null || newPasswordHash.isBlank()) {
+            throw new IllegalArgumentException("Password hash is required");
+        }
+        this.passwordHash = newPasswordHash;
+    }
+
+    public void rename(String newFullName) {
+        if (newFullName == null || newFullName.isBlank()) {
+            throw new IllegalArgumentException("Full name is required");
+        }
+        this.fullName = newFullName.trim();
+    }
+
     public void enable() {
         this.enabled = true;
     }

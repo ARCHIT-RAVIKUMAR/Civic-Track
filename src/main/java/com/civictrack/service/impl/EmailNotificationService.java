@@ -1,5 +1,6 @@
 package com.civictrack.service.impl;
 
+import com.civictrack.entity.Complaint;
 import com.civictrack.entity.User;
 import com.civictrack.service.NotificationService;
 import org.slf4j.Logger;
@@ -30,7 +31,7 @@ public class EmailNotificationService implements NotificationService {
     }
 
     @Override
-    public void notifyUser(User recipient, String subject, String message) {
+    public void notifyUser(User recipient, String subject, String message, Complaint complaint) {
         try {
             SimpleMailMessage mail = new SimpleMailMessage();
             mail.setFrom(from);

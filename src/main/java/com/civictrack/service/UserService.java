@@ -22,9 +22,20 @@ public interface UserService {
 
     List<User> findActiveFieldWorkers();
 
+    List<User> findActiveByRole(Role role);
+
+    void changePassword(User user, String currentPassword, String newPassword);
+
+    void updateOwnName(User user, String fullName);
+
     long countByRole(Role role);
 
     void changeRole(UUID userId, Role newRole, User admin);
 
     void toggleEnabled(UUID userId, User admin);
+
+    void updateName(UUID userId, String fullName, User admin);
+
+    /** Deletes an account that has no activity. Accounts with history must be disabled instead. */
+    void deleteUser(UUID userId, User admin);
 }

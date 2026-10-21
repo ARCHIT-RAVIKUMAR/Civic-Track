@@ -48,7 +48,14 @@
                     <thead class="table-light"><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
                     <tbody>
                     <tr th:each="u : ${users}">
-                        <td th:text="${u.fullName}">Name</td>
+                        <td>
+                            <form th:action="@{/admin/users/{id}/name(id=${u.id})}" method="post" class="d-flex gap-1">
+                                <label class="visually-hidden" th:for="'name-' + ${u.id}">Full name</label>
+                                <input type="text" class="form-control form-control-sm" th:id="'name-' + ${u.id}"
+                                       name="fullName" th:value="${u.fullName}" maxlength="100" required>
+                                <button type="submit" class="btn btn-sm btn-outline-primary">Rename</button>
+                            </form>
+                        </td>
                         <td th:text="${u.email}">email</td>
                         <td>
                             <form th:action="@{/admin/users/{id}/role(id=${u.id})}" method="post" class="d-flex gap-1">
@@ -63,10 +70,16 @@
                         <td><span class="badge" th:classappend="${u.enabled} ? 'text-bg-success' : 'text-bg-secondary'"
                                   th:text="${u.enabled} ? 'Active' : 'Disabled'">Active</span></td>
                         <td>
-                            <form th:action="@{/admin/users/{id}/toggle(id=${u.id})}" method="post">
-                                <button type="submit" class="btn btn-sm btn-outline-secondary"
-                                        th:text="${u.enabled} ? 'Disable' : 'Enable'">Disable</button>
-                            </form>
+                            <div class="d-flex gap-1">
+                                <form th:action="@{/admin/users/{id}/toggle(id=${u.id})}" method="post">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary"
+                                            th:text="${u.enabled} ? 'Disable' : 'Enable'">Disable</button>
+                                </form>
+                                <form th:action="@{/admin/users/{id}/delete(id=${u.id})}" method="post"
+                                      onsubmit="return confirm('Delete this user permanently? This cannot be undone.');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+                                </form>
+                            </div>
                         </td>
                     </tr>
                     </tbody>

@@ -149,4 +149,67 @@ class SecurityAccessTest {
         mockMvc.perform(logout("/logout"))
                 .andExpect(redirectedUrl("/login?logout"));
     }
+
+    // ---------------------------------------------------------------- new features
+
+    @Test
+    void accountIsLockedAfterRepeatedWrongPasswords() throws Exception {
+        userRepository.save(new User("Lock Me", "lock@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(formLogin("/login").user("lock@test.com").password("bad-password"))
+                    .andExpect(redirectedUrl("/login?error"));
+        }
+
+        // even the CORRECT password is refused while the account is locked
+        mockMvc.perform(formLogin("/login").user("lock@test.com").password("Passw0rd1"))
+                .andExpect(redirectedUrl("/login?error"));
+    }
+
+    @Test
+    void profileAndNotificationPagesNeedLogin() throws Exception {
+        mockMvc.perform(get("/profile")).andExpect(status().is3xxRedirection());
+        mockMvc.perform(get("/notifications")).andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    @WithMockUser(username = "profile@test.com", roles = "CITIZEN")
+    void profileAndNotificationPagesLoadForLoggedInUser() throws Exception {
+        userRepository.save(new User("Profile User", "profile@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(get("/profile")).andExpect(status().isOk()).andExpect(view().name("profile/profile"));
+        mockMvc.perform(get("/notifications")).andExpect(status().isOk()).andExpect(view().name("notifications/list"));
+    }
+
+    @Test
+    @WithMockUser(username = "pw@test.com", roles = "CITIZEN")
+    void userCanChangeOwnPassword() throws Exception {
+        userRepository.save(new User("Pw User", "pw@test.com", passwordEncoder.encode("OldPassw0rd"), Role.CITIZEN));
+
+        mockMvc.perform(post("/profile/password").with(csrf())
+                        .param("currentPassword", "OldPassw0rd")
+                        .param("newPassword", "NewPassw0rd2")
+                        .param("confirmPassword", "NewPassw0rd2"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/profile"));
+
+        User saved = userRepository.findByEmail("pw@test.com").orElseThrow();
+        assertTrue(passwordEncoder.matches("NewPassw0rd2", saved.getPasswordHash()));
+    }
+
+    @Test
+    @WithMockUser(username = "pw2@test.com", roles = "CITIZEN")
+    void changePasswordFailsWithWrongCurrentPassword() throws Exception {
+        userRepository.save(new User("Pw User", "pw2@test.com", passwordEncoder.encode("OldPassw0rd"), Role.CITIZEN));
+
+        mockMvc.perform(post("/profile/password").with(csrf())
+                        .param("currentPassword", "WrongPass1")
+                        .param("newPassword", "NewPassw0rd2")
+                        .param("confirmPassword", "NewPassw0rd2"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("profile/profile"));
+
+        User saved = userRepository.findByEmail("pw2@test.com").orElseThrow();
+        assertTrue(passwordEncoder.matches("OldPassw0rd", saved.getPasswordHash()));
+    }
 }

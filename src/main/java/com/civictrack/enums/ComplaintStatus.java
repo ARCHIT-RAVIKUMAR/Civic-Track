@@ -9,6 +9,7 @@ import java.util.Set;
  *
  * SUBMITTED -> UNDER_REVIEW -> ASSIGNED -> IN_PROGRESS -> RESOLVED -> CLOSED
  *      \___________\__> REJECTED (with a reason)       RESOLVED -> IN_PROGRESS (sent back)
+ *      \___________\__> WITHDRAWN (citizen cancels before assignment)
  */
 public enum ComplaintStatus {
     SUBMITTED("Submitted", "secondary"),
@@ -17,7 +18,8 @@ public enum ComplaintStatus {
     IN_PROGRESS("In Progress", "warning"),
     RESOLVED("Resolved", "success"),
     CLOSED("Closed", "dark"),
-    REJECTED("Rejected", "danger");
+    REJECTED("Rejected", "danger"),
+    WITHDRAWN("Withdrawn", "light");
 
     private final String label;
     private final String badgeClass;
@@ -37,12 +39,12 @@ public enum ComplaintStatus {
 
     public Set<ComplaintStatus> allowedNext() {
         return switch (this) {
-            case SUBMITTED -> EnumSet.of(UNDER_REVIEW, REJECTED);
-            case UNDER_REVIEW -> EnumSet.of(ASSIGNED, REJECTED);
+            case SUBMITTED -> EnumSet.of(UNDER_REVIEW, REJECTED, WITHDRAWN);
+            case UNDER_REVIEW -> EnumSet.of(ASSIGNED, REJECTED, WITHDRAWN);
             case ASSIGNED -> EnumSet.of(IN_PROGRESS);
             case IN_PROGRESS -> EnumSet.of(RESOLVED);
             case RESOLVED -> EnumSet.of(CLOSED, IN_PROGRESS);
-            case CLOSED, REJECTED -> EnumSet.noneOf(ComplaintStatus.class);
+            case CLOSED, REJECTED, WITHDRAWN -> EnumSet.noneOf(ComplaintStatus.class);
         };
     }
 
@@ -52,6 +54,6 @@ public enum ComplaintStatus {
 
     /** True when no further work can happen on the complaint. */
     public boolean isTerminal() {
-        return this == CLOSED || this == REJECTED;
+        return this == CLOSED || this == REJECTED || this == WITHDRAWN;
     }
 }

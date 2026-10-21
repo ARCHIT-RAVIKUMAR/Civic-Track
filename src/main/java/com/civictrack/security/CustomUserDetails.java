@@ -15,12 +15,18 @@ public class CustomUserDetails implements UserDetails {
     private final String passwordHash;
     private final String authority;
     private final boolean enabled;
+    private final boolean accountNonLocked;
 
     public CustomUserDetails(User user) {
+        this(user, true);
+    }
+
+    public CustomUserDetails(User user, boolean accountNonLocked) {
         this.email = user.getEmail();
         this.passwordHash = user.getPasswordHash();
         this.authority = user.getRole().authority();
         this.enabled = user.isEnabled();
+        this.accountNonLocked = accountNonLocked;
     }
 
     @Override
@@ -41,5 +47,10 @@ public class CustomUserDetails implements UserDetails {
     @Override
     public boolean isEnabled() {
         return enabled;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return accountNonLocked;
     }
 }

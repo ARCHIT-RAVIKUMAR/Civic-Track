@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('My profile')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main class="container py-4" style="max-width: 760px;">
+    <h1 class="h3 mb-3">My profile</h1>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h2 class="h6">Account details</h2>
+            <p class="mb-1"><strong>Email (login):</strong> <span th:text="${profileUser.email}">email</span></p>
+            <p class="mb-3"><strong>Role:</strong> <span th:text="${profileUser.role.label}">Role</span></p>
+            <form th:action="@{/profile/name}" method="post" class="row g-2 align-items-end">
+                <div class="col-sm-8">
+                    <label for="fullName" class="form-label">Full name</label>
+                    <input type="text" class="form-control" id="fullName" name="fullName"
+                           th:value="${profileUser.fullName}" maxlength="100" required>
+                </div>
+                <div class="col-sm-4"><button type="submit" class="btn btn-outline-primary w-100">Save name</button></div>
+            </form>
+        </div>
+    </div>
+
+    <form th:action="@{/profile/password}" th:object="${passwordForm}" method="post"
+          class="card card-body shadow-sm" novalidate>
+        <h2 class="h6">Change password</h2>
+        <div class="mb-3">
+            <label for="currentPassword" class="form-label">Current password</label>
+            <input type="password" class="form-control" id="currentPassword" th:field="*{currentPassword}"
+                   th:classappend="${#fields.hasErrors('currentPassword')} ? 'is-invalid'" autocomplete="current-password">
+            <div class="invalid-feedback" th:errors="*{currentPassword}"></div>
+        </div>
+        <div class="mb-3">
+            <label for="newPassword" class="form-label">New password</label>
+            <input type="password" class="form-control" id="newPassword" th:field="*{newPassword}"
+                   th:classappend="${#fields.hasErrors('newPassword')} ? 'is-invalid'" autocomplete="new-password">
+            <div class="form-text">At least 8 characters, with a letter and a number.</div>
+            <div class="invalid-feedback" th:errors="*{newPassword}"></div>
+        </div>
+        <div class="mb-3">
+            <label for="confirmPassword" class="form-label">Confirm new password</label>
+            <input type="password" class="form-control" id="confirmPassword" th:field="*{confirmPassword}"
+                   th:classappend="${#fields.hasErrors('passwordConfirmed')} ? 'is-invalid'" autocomplete="new-password">
+            <div class="invalid-feedback" th:errors="*{passwordConfirmed}"></div>
+        </div>
+        <div><button type="submit" class="btn btn-primary">Change password</button></div>
+    </form>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

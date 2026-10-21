@@ -77,4 +77,30 @@ class ComplaintRepositoryTest {
         var page = complaintRepository.findAll(ComplaintSpecs.withFilter(new ComplaintFilter()), PageRequest.of(0, 10));
         assertEquals(2, page.getTotalElements());
     }
+
+    @Test
+    void keywordSearchMatchesTitleDescriptionAndLocationIgnoringCase() {
+        ComplaintFilter byTitle = new ComplaintFilter();
+        byTitle.setQ("POTHOLE");
+        assertEquals(1, complaintRepository.findAll(ComplaintSpecs.withFilter(byTitle), PageRequest.of(0, 10)).getTotalElements());
+
+        ComplaintFilter byLocation = new ComplaintFilter();
+        byLocation.setQ("park st");
+        assertEquals(1, complaintRepository.findAll(ComplaintSpecs.withFilter(byLocation), PageRequest.of(0, 10)).getTotalElements());
+
+        ComplaintFilter byDescription = new ComplaintFilter();
+        byDescription.setQ("not collected");
+        assertEquals(1, complaintRepository.findAll(ComplaintSpecs.withFilter(byDescription), PageRequest.of(0, 10)).getTotalElements());
+
+        ComplaintFilter none = new ComplaintFilter();
+        none.setQ("zzzz");
+        assertEquals(0, complaintRepository.findAll(ComplaintSpecs.withFilter(none), PageRequest.of(0, 10)).getTotalElements());
+    }
+
+    @Test
+    void searchTreatsPercentSignAsPlainText() {
+        ComplaintFilter filter = new ComplaintFilter();
+        filter.setQ("%");
+        assertEquals(0, complaintRepository.findAll(ComplaintSpecs.withFilter(filter), PageRequest.of(0, 10)).getTotalElements());
+    }
 }

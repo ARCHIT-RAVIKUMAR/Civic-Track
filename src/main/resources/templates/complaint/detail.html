@@ -38,6 +38,18 @@
                 </div>
             </div>
 
+            <!-- Citizen: withdraw before assignment -->
+            <div class="card shadow-sm mb-4"
+                 th:if="${viewerRole == 'CITIZEN' and (complaint.status.name() == 'SUBMITTED' or complaint.status.name() == 'UNDER_REVIEW')}">
+                <div class="card-body">
+                    <p class="text-muted small mb-2">Reported by mistake or no longer a problem? You can withdraw it until it is assigned.</p>
+                    <form th:action="@{/citizen/complaints/{id}/withdraw(id=${complaint.id})}" method="post"
+                          onsubmit="return confirm('Withdraw this complaint?');">
+                        <button class="btn btn-outline-danger" type="submit">Withdraw this complaint</button>
+                    </form>
+                </div>
+            </div>
+
             <!-- Feedback -->
             <div class="card shadow-sm mb-4" th:if="${feedback != null}">
                 <div class="card-body">

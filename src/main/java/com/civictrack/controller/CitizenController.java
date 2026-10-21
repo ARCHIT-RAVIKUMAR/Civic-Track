@@ -5,12 +5,12 @@ import com.civictrack.dto.FeedbackForm;
 import com.civictrack.entity.Complaint;
 import com.civictrack.entity.User;
 import com.civictrack.exception.BusinessRuleException;
-import com.civictrack.exception.ForbiddenOperationException;
 import com.civictrack.service.CategoryService;
 import com.civictrack.service.ComplaintService;
 import com.civictrack.service.FeedbackService;
 import com.civictrack.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -24,11 +24,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.List;
 import java.util.UUID;
 
 @Controller
 @RequestMapping("/citizen")
 public class CitizenController {
+
+    private static final int PAGE_SIZE = 10;
 
     private final UserService userService;
     private final ComplaintService complaintService;
@@ -44,9 +47,10 @@ public class CitizenController {
     }
 
     @GetMapping("/dashboard")
-    public String dashboard(Authentication auth, Model model) {
+    public String dashboard(@RequestParam(defaultValue = "0") int page, Authentication auth, Model model) {
         User citizen = userService.getByEmail(auth.getName());
-        model.addAttribute("complaints", complaintService.findForCitizen(citizen));
+        Page<Complaint> results = complaintService.findForCitizen(citizen, page, PAGE_SIZE);
+        model.addAttribute("page", results);
         return "citizen/dashboard";
     }
 
@@ -61,6 +65,7 @@ public class CitizenController {
     public String submit(@Valid @ModelAttribute("complaintForm") ComplaintForm form,
                          BindingResult result,
                          @RequestParam(value = "image", required = false) MultipartFile image,
+                         @RequestParam(value = "confirmDuplicate", defaultValue = "false") boolean confirmDuplicate,
                          Authentication auth, Model model, RedirectAttributes redirect) {
         model.addAttribute("categories", categoryService.findActive());
         if (result.hasErrors()) {
@@ -68,6 +73,13 @@ public class CitizenController {
         }
         User citizen = userService.getByEmail(auth.getName());
         try {
+            if (!confirmDuplicate) {
+                List<Complaint> duplicates = complaintService.findPossibleDuplicates(form, citizen);
+                if (!duplicates.isEmpty()) {
+                    model.addAttribute("duplicates", duplicates);
+                    return "citizen/complaint-form";
+                }
+            }
             Complaint saved = complaintService.submit(form, image, citizen);
             redirect.addFlashAttribute("success", "Complaint submitted. You can track it from your dashboard.");
             return "redirect:/complaints/" + saved.getId();
@@ -75,6 +87,18 @@ public class CitizenController {
             model.addAttribute("error", ex.getMessage());
             return "citizen/complaint-form";
         }
+    }
+
+    @PostMapping("/complaints/{id}/withdraw")
+    public String withdraw(@PathVariable UUID id, Authentication auth, RedirectAttributes redirect) {
+        User citizen = userService.getByEmail(auth.getName());
+        try {
+            complaintService.withdraw(id, citizen);
+            redirect.addFlashAttribute("success", "Complaint withdrawn.");
+        } catch (BusinessRuleException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/complaints/" + id;
     }
 
     @GetMapping("/complaints/{id}/feedback")
@@ -106,8 +130,6 @@ public class CitizenController {
             model.addAttribute("complaint", complaint);
             model.addAttribute("error", ex.getMessage());
             return "citizen/feedback";
-        } catch (ForbiddenOperationException ex) {
-            throw ex;
         }
         redirect.addFlashAttribute("success", "Thank you for your feedback!");
         return "redirect:/complaints/" + id;

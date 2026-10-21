@@ -1,5 +1,6 @@
 package com.civictrack.service;
 
+import com.civictrack.dto.ComplaintForm;
 import com.civictrack.entity.Assignment;
 import com.civictrack.entity.Category;
 import com.civictrack.entity.Complaint;
@@ -21,6 +22,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -58,7 +60,7 @@ class ComplaintServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new ComplaintServiceImpl(complaintRepository, assignmentRepository, historyRepository,
-                categoryService, userService, fileStorageService, notificationService);
+                categoryService, userService, fileStorageService, List.of(notificationService));
         citizen = userWithId("Citizen", "citizen@example.com", Role.CITIZEN);
         authority = userWithId("Authority", "auth@example.com", Role.AUTHORITY);
         worker = userWithId("Worker", "worker@example.com", Role.FIELD_WORKER);
@@ -78,8 +80,8 @@ class ComplaintServiceImplTest {
         assertEquals(ComplaintStatus.ASSIGNED, complaint.getStatus());
         verify(assignmentRepository).save(any(Assignment.class));
         verify(historyRepository).save(any(StatusHistory.class));
-        verify(notificationService).notifyUser(eq(worker), anyString(), anyString());
-        verify(notificationService).notifyUser(eq(citizen), anyString(), anyString());
+        verify(notificationService).notifyUser(eq(worker), anyString(), anyString(), any());
+        verify(notificationService).notifyUser(eq(citizen), anyString(), anyString(), any());
     }
 
     @Test
@@ -151,5 +153,102 @@ class ComplaintServiceImplTest {
 
         assertSame(complaint, service.getForViewer(complaintId, citizen));
         assertSame(complaint, service.getForViewer(complaintId, authority));
+    }
+
+    // ---------------------------------------------------------------- new features
+
+    private ComplaintForm form(UUID categoryId, String location) {
+        ComplaintForm f = new ComplaintForm();
+        f.setTitle("Pothole on road");
+        f.setDescription("A deep pothole that is dangerous");
+        f.setLocation(location);
+        f.setCategoryId(categoryId);
+        return f;
+    }
+
+    @Test
+    void submittingAComplaintNotifiesAuthoritiesAndAdmins() {
+        User admin = userWithId("Admin", "admin@example.com", Role.ADMIN);
+        Category category = new Category("Roads", null);
+        UUID categoryId = UUID.randomUUID();
+        when(categoryService.getActiveById(categoryId)).thenReturn(category);
+        when(userService.findActiveByRole(Role.AUTHORITY)).thenReturn(List.of(authority));
+        when(userService.findActiveByRole(Role.ADMIN)).thenReturn(List.of(admin));
+
+        Complaint saved = service.submit(form(categoryId, "MG Road"), null, citizen);
+
+        assertEquals(ComplaintStatus.SUBMITTED, saved.getStatus());
+        verify(notificationService).notifyUser(eq(authority), anyString(), anyString(), any());
+        verify(notificationService).notifyUser(eq(admin), anyString(), anyString(), any());
+    }
+
+    @Test
+    void workerMarkingResolvedNotifiesAuthorities() {
+        complaint.changeStatus(ComplaintStatus.UNDER_REVIEW);
+        complaint.changeStatus(ComplaintStatus.ASSIGNED);
+        complaint.changeStatus(ComplaintStatus.IN_PROGRESS);
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(assignmentRepository.existsByComplaintAndWorkerAndActiveTrue(complaint, worker)).thenReturn(true);
+        when(userService.findActiveByRole(Role.AUTHORITY)).thenReturn(List.of(authority));
+
+        service.markResolved(complaintId, "Done", worker);
+
+        verify(notificationService).notifyUser(eq(authority), anyString(), anyString(), any());
+    }
+
+    @Test
+    void citizenCanWithdrawOwnComplaintBeforeAssignment() {
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        service.withdraw(complaintId, citizen);
+
+        assertEquals(ComplaintStatus.WITHDRAWN, complaint.getStatus());
+        verify(historyRepository).save(any(StatusHistory.class));
+    }
+
+    @Test
+    void withdrawIsRefusedOnceAssigned() {
+        complaint.changeStatus(ComplaintStatus.UNDER_REVIEW);
+        complaint.changeStatus(ComplaintStatus.ASSIGNED);
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        assertThrows(InvalidStatusTransitionException.class, () -> service.withdraw(complaintId, citizen));
+        assertEquals(ComplaintStatus.ASSIGNED, complaint.getStatus());
+    }
+
+    @Test
+    void citizenCannotWithdrawSomeoneElsesComplaint() {
+        User other = userWithId("Other", "other@example.com", Role.CITIZEN);
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        assertThrows(ForbiddenOperationException.class, () -> service.withdraw(complaintId, other));
+    }
+
+    @Test
+    void similarOpenComplaintIsReportedAsPossibleDuplicate() {
+        Category category = new Category("Streetlight", null);
+        UUID categoryId = UUID.randomUUID();
+        Complaint existing = new Complaint("Light out", "No light for days here", "5th Cross, near temple",
+                category, userWithId("Neighbour", "n@example.com", Role.CITIZEN));
+        when(categoryService.getActiveById(categoryId)).thenReturn(category);
+        when(complaintRepository.findByCategoryAndStatusInAndCreatedAtAfter(eq(category), any(), any()))
+                .thenReturn(List.of(existing));
+
+        List<Complaint> duplicates = service.findPossibleDuplicates(form(categoryId, "5th cross"), citizen);
+
+        assertEquals(1, duplicates.size());
+    }
+
+    @Test
+    void differentLocationIsNotADuplicate() {
+        Category category = new Category("Streetlight", null);
+        UUID categoryId = UUID.randomUUID();
+        Complaint existing = new Complaint("Light out", "No light for days here", "Gandhi Nagar bus stand",
+                category, userWithId("Neighbour", "n@example.com", Role.CITIZEN));
+        when(categoryService.getActiveById(categoryId)).thenReturn(category);
+        when(complaintRepository.findByCategoryAndStatusInAndCreatedAtAfter(eq(category), any(), any()))
+                .thenReturn(List.of(existing));
+
+        assertTrue(service.findPossibleDuplicates(form(categoryId, "Park Avenue"), citizen).isEmpty());
     }
 }

@@ -9,6 +9,7 @@ import java.util.UUID;
 /** Filters for the authority dashboard. Every field is optional. */
 public class ComplaintFilter {
 
+    private String q;
     private ComplaintStatus status;
     private UUID categoryId;
 
@@ -17,6 +18,14 @@ public class ComplaintFilter {
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate to;
+
+    public String getQ() {
+        return q;
+    }
+
+    public void setQ(String q) {
+        this.q = q;
+    }
 
     public ComplaintStatus getStatus() {
         return status;

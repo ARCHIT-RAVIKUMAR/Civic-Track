@@ -6,7 +6,7 @@
 <main class="container py-5" style="max-width: 460px;">
     <h1 class="h3 mb-4">Log in</h1>
     <div th:replace="~{fragments/layout :: flash}"></div>
-    <div class="alert alert-danger" role="alert" th:if="${param.error}">Invalid email or password.</div>
+    <div class="alert alert-danger" role="alert" th:if="${param.error}">Invalid email or password. After several wrong attempts an account is locked for a few minutes.</div>
     <div class="alert alert-success" role="alert" th:if="${param.logout}">You have been logged out.</div>
 
     <form th:action="@{/login}" method="post" class="card card-body shadow-sm">

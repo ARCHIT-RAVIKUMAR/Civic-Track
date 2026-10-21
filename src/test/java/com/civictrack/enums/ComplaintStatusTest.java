@@ -33,6 +33,15 @@ class ComplaintStatusTest {
     }
 
     @Test
+    void citizenCanWithdrawOnlyBeforeAssignment() {
+        assertTrue(SUBMITTED.canTransitionTo(WITHDRAWN));
+        assertTrue(UNDER_REVIEW.canTransitionTo(WITHDRAWN));
+        assertFalse(ASSIGNED.canTransitionTo(WITHDRAWN));
+        assertFalse(IN_PROGRESS.canTransitionTo(WITHDRAWN));
+        assertTrue(WITHDRAWN.isTerminal());
+    }
+
+    @Test
     void authorityCanSendResolvedWorkBack() {
         assertTrue(RESOLVED.canTransitionTo(IN_PROGRESS));
     }
