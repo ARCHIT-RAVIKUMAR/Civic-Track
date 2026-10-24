@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDateTime;
 import java.util.Collection;
@@ -22,6 +23,10 @@ public interface ComplaintRepository extends JpaRepository<Complaint, UUID>, Jpa
     long countByStatus(ComplaintStatus status);
 
     boolean existsByCitizen(User citizen);
+
+    /** Rows of [categoryName, count], largest first. Used by the dashboard charts. */
+    @Query("select c.category.name, count(c) from Complaint c group by c.category.name order by count(c) desc")
+    List<Object[]> countByCategory();
 
     Page<Complaint> findByCitizen(User citizen, Pageable pageable);
 

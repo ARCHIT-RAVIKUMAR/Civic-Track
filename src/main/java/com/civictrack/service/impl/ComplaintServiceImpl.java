@@ -5,6 +5,7 @@ import com.civictrack.dto.ComplaintForm;
 import com.civictrack.entity.Assignment;
 import com.civictrack.entity.Category;
 import com.civictrack.entity.Complaint;
+import com.civictrack.entity.ComplaintComment;
 import com.civictrack.entity.StatusHistory;
 import com.civictrack.entity.User;
 import com.civictrack.enums.ComplaintStatus;
@@ -14,6 +15,7 @@ import com.civictrack.exception.BusinessRuleException;
 import com.civictrack.exception.ForbiddenOperationException;
 import com.civictrack.exception.ResourceNotFoundException;
 import com.civictrack.repository.AssignmentRepository;
+import com.civictrack.repository.ComplaintCommentRepository;
 import com.civictrack.repository.ComplaintRepository;
 import com.civictrack.repository.ComplaintSpecs;
 import com.civictrack.repository.StatusHistoryRepository;
@@ -35,6 +37,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -53,6 +56,8 @@ public class ComplaintServiceImpl implements ComplaintService {
 
     private static final Logger log = LoggerFactory.getLogger(ComplaintServiceImpl.class);
 
+    private static final int REOPEN_DAYS = 7;
+
     private static final Set<ComplaintStatus> OPEN_STATUSES = EnumSet.of(
             ComplaintStatus.SUBMITTED, ComplaintStatus.UNDER_REVIEW,
             ComplaintStatus.ASSIGNED, ComplaintStatus.IN_PROGRESS);
@@ -60,6 +65,7 @@ public class ComplaintServiceImpl implements ComplaintService {
     private final ComplaintRepository complaintRepository;
     private final AssignmentRepository assignmentRepository;
     private final StatusHistoryRepository historyRepository;
+    private final ComplaintCommentRepository commentRepository;
     private final CategoryService categoryService;
     private final UserService userService;
     private final FileStorageService fileStorageService;
@@ -68,6 +74,7 @@ public class ComplaintServiceImpl implements ComplaintService {
     public ComplaintServiceImpl(ComplaintRepository complaintRepository,
                                 AssignmentRepository assignmentRepository,
                                 StatusHistoryRepository historyRepository,
+                                ComplaintCommentRepository commentRepository,
                                 CategoryService categoryService,
                                 UserService userService,
                                 FileStorageService fileStorageService,
@@ -75,6 +82,7 @@ public class ComplaintServiceImpl implements ComplaintService {
         this.complaintRepository = complaintRepository;
         this.assignmentRepository = assignmentRepository;
         this.historyRepository = historyRepository;
+        this.commentRepository = commentRepository;
         this.categoryService = categoryService;
         this.userService = userService;
         this.fileStorageService = fileStorageService;
@@ -89,6 +97,7 @@ public class ComplaintServiceImpl implements ComplaintService {
         Category category = categoryService.getActiveById(form.getCategoryId());
         Complaint complaint = new Complaint(form.getTitle(), form.getDescription(),
                 form.getLocation(), category, citizen);
+        complaint.locate(form.getLatitude(), form.getLongitude());
         if (image != null && !image.isEmpty()) {
             complaint.attachImage(fileStorageService.store(image));
         }
@@ -203,17 +212,16 @@ public class ComplaintServiceImpl implements ComplaintService {
 
     /** Quotes the cell and neutralises spreadsheet formulas (=, +, -, @) typed by users. */
     private String csvCell(String value) {
-        String safe = value == null ? "" : value;
-        if (!safe.isEmpty() && "=+-@".indexOf(safe.charAt(0)) >= 0) {
-            safe = "'" + safe;
-        }
-        return "\"" + safe.replace("\"", "\"\"") + "\"";
+        return CsvUtil.cell(value);
     }
 
     @Override
     public void startReview(UUID id, User actor) {
         requireRole(actor, Role.AUTHORITY);
         Complaint complaint = findComplaint(id);
+        if (complaint.getStatus() != ComplaintStatus.SUBMITTED) {
+            throw new BusinessRuleException("Only newly submitted complaints can be moved to review.");
+        }
         transition(complaint, ComplaintStatus.UNDER_REVIEW, actor, "Review started");
     }
 
@@ -325,6 +333,135 @@ public class ComplaintServiceImpl implements ComplaintService {
                 actor.getFullName() + " marked the work as completed. Please verify and close it.", complaint);
     }
 
+    // ------------------------------------------------------------------ reopen, overdue, exports
+
+    @Override
+    public void reopen(UUID id, String reason, User actor) {
+        requireRole(actor, Role.CITIZEN);
+        Complaint complaint = findComplaint(id);
+        if (!complaint.isOwnedBy(actor)) {
+            throw new ForbiddenOperationException("You can only reopen your own complaints.");
+        }
+        if (complaint.getStatus() != ComplaintStatus.CLOSED) {
+            throw new BusinessRuleException("Only closed complaints can be reopened.");
+        }
+        if (!withinReopenWindow(complaint)) {
+            throw new BusinessRuleException("This complaint was closed more than " + REOPEN_DAYS
+                    + " days ago. Please report a new complaint instead.");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new BusinessRuleException("Please explain what is still wrong.");
+        }
+        String text = reason.trim();
+        if (text.length() > 500) {
+            throw new BusinessRuleException("The explanation is too long (maximum 500 characters).");
+        }
+        // the earlier worker is released; the authority assigns the complaint again
+        assignmentRepository.findByComplaintAndActiveTrue(complaint).ifPresent(a -> {
+            a.deactivate();
+            assignmentRepository.save(a);
+        });
+        transition(complaint, ComplaintStatus.UNDER_REVIEW, actor, "Reopened by the citizen: " + text);
+        notifyRole(Role.AUTHORITY, "Complaint reopened: " + complaint.getTitle(), text, complaint);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean canReopen(Complaint complaint, User viewer) {
+        return viewer.hasRole(Role.CITIZEN)
+                && complaint.isOwnedBy(viewer)
+                && complaint.getStatus() == ComplaintStatus.CLOSED
+                && withinReopenWindow(complaint);
+    }
+
+    private boolean withinReopenWindow(Complaint complaint) {
+        List<StatusHistory> history = historyRepository.findByComplaintOrderByCreatedAtAsc(complaint);
+        for (int i = history.size() - 1; i >= 0; i--) {
+            StatusHistory entry = history.get(i);
+            if (entry.getNewStatus() == ComplaintStatus.CLOSED && entry.getOldStatus() != ComplaintStatus.CLOSED) {
+                return entry.getCreatedAt() != null
+                        && entry.getCreatedAt().isAfter(LocalDateTime.now().minusDays(REOPEN_DAYS));
+            }
+        }
+        return false;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countOverdue() {
+        ComplaintFilter filter = new ComplaintFilter();
+        filter.setOverdue(true);
+        return complaintRepository.count(ComplaintSpecs.withFilter(filter));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public String exportAuditCsv(User actor) {
+        requireRole(actor, Role.ADMIN);
+        StringBuilder csv = new StringBuilder("When,Who,Role,Complaint,From,To,Notes\n");
+        Page<StatusHistory> rows = historyRepository.findAll(
+                PageRequest.of(0, 5000, Sort.by(Sort.Direction.DESC, "createdAt")));
+        for (StatusHistory h : rows.getContent()) {
+            csv.append(CsvUtil.row(
+                    h.getCreatedAtDisplay(),
+                    h.getChangedBy().getFullName(),
+                    h.getChangedBy().getRole().getLabel(),
+                    h.getComplaint().getTitle(),
+                    h.getOldStatus() == null ? "" : h.getOldStatus().getLabel(),
+                    h.getNewStatus().getLabel(),
+                    h.getNotes() == null ? "" : h.getNotes()));
+        }
+        return csv.toString();
+    }
+
+    // ------------------------------------------------------------------ comments and audit
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ComplaintComment> getComments(Complaint complaint) {
+        return commentRepository.findByComplaintOrderByCreatedAtAsc(complaint);
+    }
+
+    @Override
+    public void addComment(UUID complaintId, String message, User actor) {
+        if (actor.hasRole(Role.ADMIN)) {
+            throw new ForbiddenOperationException("Administrators have read-only access to complaints.");
+        }
+        Complaint complaint = getForViewer(complaintId, actor); // also checks that this person may see it
+        if (complaint.getStatus().isTerminal()) {
+            throw new BusinessRuleException("Comments are closed for this complaint.");
+        }
+        if (message == null || message.isBlank()) {
+            throw new BusinessRuleException("Please write a comment.");
+        }
+        String text = message.trim();
+        if (text.length() > 1000) {
+            throw new BusinessRuleException("The comment is too long (maximum 1000 characters).");
+        }
+        commentRepository.save(new ComplaintComment(complaint, actor, text));
+
+        String subject = "New comment on: " + complaint.getTitle();
+        String body = actor.getFullName() + ": " + text;
+        if (!complaint.isOwnedBy(actor)) {
+            notifyUser(complaint.getCitizen(), subject, body, complaint);
+        }
+        assignmentRepository.findByComplaintAndActiveTrue(complaint)
+                .map(Assignment::getWorker)
+                .filter(worker -> !worker.equals(actor))
+                .ifPresent(worker -> notifyUser(worker, subject, body, complaint));
+        if (!actor.hasRole(Role.AUTHORITY)) {
+            notifyRole(Role.AUTHORITY, subject, body, complaint);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<StatusHistory> findAuditLog(int page, int size, User actor) {
+        requireRole(actor, Role.ADMIN);
+        return historyRepository.findAll(
+                PageRequest.of(Math.max(page, 0), size, Sort.by(Sort.Direction.DESC, "createdAt")));
+    }
+
     // ------------------------------------------------------------------ statistics
 
     @Override
@@ -335,6 +472,16 @@ public class ComplaintServiceImpl implements ComplaintService {
             counts.put(status, complaintRepository.countByStatus(status));
         }
         return counts;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Long> countByCategory() {
+        Map<String, Long> result = new LinkedHashMap<>();
+        for (Object[] row : complaintRepository.countByCategory()) {
+            result.put((String) row[0], (Long) row[1]);
+        }
+        return result;
     }
 
     @Override

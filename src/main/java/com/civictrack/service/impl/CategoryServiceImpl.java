@@ -36,6 +36,13 @@ public class CategoryServiceImpl implements CategoryService {
 
     @Override
     @Transactional(readOnly = true)
+    public Category getById(UUID id) {
+        return categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found."));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Category getActiveById(UUID id) {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found."));
@@ -51,6 +58,27 @@ public class CategoryServiceImpl implements CategoryService {
             throw new BusinessRuleException("A category with this name already exists.");
         }
         return categoryRepository.save(new Category(form.getName(), form.getDescription()));
+    }
+
+    @Override
+    public void update(UUID id, String name, String description) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category not found."));
+        if (name == null || name.isBlank()) {
+            throw new BusinessRuleException("Category name is required.");
+        }
+        String cleanName = name.trim();
+        if (cleanName.length() > 80) {
+            throw new BusinessRuleException("Category name is too long (maximum 80 characters).");
+        }
+        if (description != null && description.trim().length() > 255) {
+            throw new BusinessRuleException("Description is too long (maximum 255 characters).");
+        }
+        if (categoryRepository.existsByNameIgnoreCaseAndIdNot(cleanName, id)) {
+            throw new BusinessRuleException("Another category already uses this name.");
+        }
+        category.update(cleanName, description);
+        categoryRepository.save(category);
     }
 
     @Override

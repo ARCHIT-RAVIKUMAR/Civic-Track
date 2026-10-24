@@ -79,4 +79,12 @@ class LoginAttemptServiceTest {
         assertTrue(service.isLocked("a@example.com"));
         assertFalse(service.isLocked("b@example.com"));
     }
+
+    @Test
+    void recordFailureReportsOnlyTheFailureThatCausesTheLock() {
+        assertFalse(service.recordFailure("a@example.com"));
+        assertFalse(service.recordFailure("a@example.com"));
+        assertTrue(service.recordFailure("a@example.com"));
+        assertFalse(service.recordFailure("a@example.com")); // already locked
+    }
 }

@@ -13,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 /**
@@ -54,6 +55,12 @@ public class Complaint extends BaseEntity {
     @Column(name = "image_filename", length = 100)
     private String imageFilename;
 
+    @Column(name = "latitude")
+    private Double latitude;
+
+    @Column(name = "longitude")
+    private Double longitude;
+
     protected Complaint() {
     }
 
@@ -92,6 +99,23 @@ public class Complaint extends BaseEntity {
 
     public void changePriority(Priority newPriority) {
         this.priority = Objects.requireNonNull(newPriority, "Priority is required");
+    }
+
+    /** Sets (or clears) the map position. Both values must be given together and be real coordinates. */
+    public void locate(Double lat, Double lng) {
+        if (lat == null && lng == null) {
+            this.latitude = null;
+            this.longitude = null;
+            return;
+        }
+        if (lat == null || lng == null) {
+            throw new IllegalArgumentException("Both latitude and longitude are required");
+        }
+        if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+            throw new IllegalArgumentException("Coordinates are out of range");
+        }
+        this.latitude = lat;
+        this.longitude = lng;
     }
 
     public void attachImage(String storedFilename) {
@@ -138,6 +162,29 @@ public class Complaint extends BaseEntity {
 
     public String getImageFilename() {
         return imageFilename;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    /**
+     * True when the work is still open and older than the target for its priority
+     * (Urgent 1 day, High 3, Medium 7, Low 14). The clock stops when the worker marks it resolved.
+     */
+    public boolean isOverdue() {
+        if (getCreatedAt() == null || status.isTerminal() || status == ComplaintStatus.RESOLVED) {
+            return false;
+        }
+        return getCreatedAt().plusDays(priority.getSlaDays()).isBefore(LocalDateTime.now());
+    }
+
+    public boolean hasCoordinates() {
+        return latitude != null && longitude != null;
     }
 
     public boolean hasImage() {

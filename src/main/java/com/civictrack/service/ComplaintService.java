@@ -4,6 +4,7 @@ import com.civictrack.dto.ComplaintFilter;
 import com.civictrack.dto.ComplaintForm;
 import com.civictrack.entity.Assignment;
 import com.civictrack.entity.Complaint;
+import com.civictrack.entity.ComplaintComment;
 import com.civictrack.entity.StatusHistory;
 import com.civictrack.entity.User;
 import com.civictrack.enums.ComplaintStatus;
@@ -66,8 +67,30 @@ public interface ComplaintService {
 
     void markResolved(UUID id, String note, User actor);
 
+    // comments (citizen, authority and the assigned worker can talk on the complaint)
+    List<ComplaintComment> getComments(Complaint complaint);
+
+    void addComment(UUID complaintId, String message, User actor);
+
+    /** A citizen reopens their own closed complaint (within 7 days of closing) because it is not really fixed. */
+    void reopen(UUID id, String reason, User actor);
+
+    boolean canReopen(Complaint complaint, User viewer);
+
+    /** Open complaints that are older than the target time for their priority. */
+    long countOverdue();
+
+    // admin: complete activity log
+    Page<StatusHistory> findAuditLog(int page, int size, User actor);
+
+    /** CSV of the latest 5000 audit entries (admin only). */
+    String exportAuditCsv(User actor);
+
     // statistics
     Map<ComplaintStatus, Long> countByStatus();
+
+    /** Category name -> number of complaints, largest first. */
+    Map<String, Long> countByCategory();
 
     List<Complaint> findRecent();
 }

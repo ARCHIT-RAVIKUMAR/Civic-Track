@@ -4,6 +4,7 @@ import com.civictrack.exception.BusinessRuleException;
 import com.civictrack.exception.ResourceNotFoundException;
 import com.civictrack.service.FileStorageService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.PathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -16,17 +17,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 /**
- * OPTIONAL feature: stores JPEG/PNG images on local disk.
+ * Default storage (civictrack.storage.mode=local): JPEG/PNG images on local disk.
  * NOTE: on free hosts such as Render Free the disk is wiped on every restart/redeploy.
+ * Use SupabaseFileStorageService for permanent storage.
  */
 @Service
+@ConditionalOnProperty(name = "civictrack.storage.mode", havingValue = "local", matchIfMissing = true)
 public class LocalFileStorageService implements FileStorageService {
-
-    private static final long MAX_BYTES = 2L * 1024 * 1024;
-    private static final Pattern SAFE_NAME = Pattern.compile("[a-f0-9\\-]{36}\\.(jpg|png)");
 
     private final Path root;
 
@@ -39,7 +38,7 @@ public class LocalFileStorageService implements FileStorageService {
         if (file == null || file.isEmpty()) {
             throw new BusinessRuleException("The image file is empty.");
         }
-        if (file.getSize() > MAX_BYTES) {
+        if (file.getSize() > ImageFiles.MAX_BYTES) {
             throw new BusinessRuleException("The image is too large (maximum 2 MB).");
         }
         try {
@@ -48,7 +47,7 @@ public class LocalFileStorageService implements FileStorageService {
             try (InputStream in = file.getInputStream()) {
                 read = in.readNBytes(header, 0, header.length);
             }
-            String extension = detectExtension(header, read);
+            String extension = ImageFiles.detectExtension(header, read);
             if (extension == null) {
                 throw new BusinessRuleException("Only JPEG and PNG images are allowed.");
             }
@@ -63,20 +62,9 @@ public class LocalFileStorageService implements FileStorageService {
         }
     }
 
-    /** Checks the real file signature ("magic bytes"), not just the name the browser sent. */
-    private String detectExtension(byte[] h, int length) {
-        if (length >= 3 && (h[0] & 0xFF) == 0xFF && (h[1] & 0xFF) == 0xD8 && (h[2] & 0xFF) == 0xFF) {
-            return "jpg";
-        }
-        if (length >= 8 && (h[0] & 0xFF) == 0x89 && h[1] == 'P' && h[2] == 'N' && h[3] == 'G') {
-            return "png";
-        }
-        return null;
-    }
-
     @Override
     public Resource load(String filename) {
-        if (filename == null || !SAFE_NAME.matcher(filename).matches()) {
+        if (!ImageFiles.isSafeName(filename)) {
             throw new ResourceNotFoundException("Image not found.");
         }
         Path path = root.resolve(filename).normalize();

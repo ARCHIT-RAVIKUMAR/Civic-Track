@@ -3,8 +3,11 @@
 <head th:replace="~{fragments/layout :: head('Manage users')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-4">
-    <h1 class="h3 mb-3">Manage users</h1>
+<main id="main-content" class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">Manage users</h1>
+        <a class="btn btn-outline-primary btn-sm" th:href="@{/admin/users/export}"><i class="bi bi-download"></i> Export CSV</a>
+    </div>
     <div th:replace="~{fragments/layout :: flash}"></div>
 
     <div class="row g-4">
@@ -19,14 +22,18 @@
                 </div>
                 <div class="mb-3">
                     <label for="email" class="form-label">Email</label>
-                    <input type="email" class="form-control" id="email" th:field="*{email}"
+                    <input type="email" autocapitalize="none" spellcheck="false" class="form-control" id="email" th:field="*{email}"
                            th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'">
                     <div class="invalid-feedback" th:errors="*{email}"></div>
                 </div>
                 <div class="mb-3">
                     <label for="password" class="form-label">Temporary password</label>
-                    <input type="password" class="form-control" id="password" th:field="*{password}"
-                           th:classappend="${#fields.hasErrors('password')} ? 'is-invalid'" autocomplete="new-password">
+                    <div class="input-group">
+                        <input type="password" class="form-control" id="password" data-password-rules th:field="*{password}"
+                               th:classappend="${#fields.hasErrors('password')} ? 'is-invalid'" autocomplete="new-password">
+                        <button class="btn btn-outline-secondary toggle-password" type="button" data-target="password"
+                                aria-label="Show password"><i class="bi bi-eye"></i></button>
+                    </div>
                     <div class="invalid-feedback" th:errors="*{password}"></div>
                 </div>
                 <div class="mb-3">
@@ -43,42 +50,50 @@
         </div>
 
         <div class="col-lg-8">
-            <div class="table-responsive card shadow-sm">
-                <table class="table align-middle mb-0">
-                    <thead class="table-light"><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+            <!-- no .table-responsive here: it would clip the actions menu -->
+            <div class="card shadow-sm">
+                <table class="table table-stack align-middle mb-0">
+                    <thead class="table-light">
+                    <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr>
+                    </thead>
                     <tbody>
                     <tr th:each="u : ${users}">
-                        <td>
-                            <form th:action="@{/admin/users/{id}/name(id=${u.id})}" method="post" class="d-flex gap-1">
-                                <label class="visually-hidden" th:for="'name-' + ${u.id}">Full name</label>
-                                <input type="text" class="form-control form-control-sm" th:id="'name-' + ${u.id}"
-                                       name="fullName" th:value="${u.fullName}" maxlength="100" required>
-                                <button type="submit" class="btn btn-sm btn-outline-primary">Rename</button>
-                            </form>
-                        </td>
-                        <td th:text="${u.email}">email</td>
-                        <td>
-                            <form th:action="@{/admin/users/{id}/role(id=${u.id})}" method="post" class="d-flex gap-1">
-                                <label class="visually-hidden" th:for="'role-' + ${u.id}">Role for <span th:text="${u.fullName}"></span></label>
-                                <select class="form-select form-select-sm" name="role" th:id="'role-' + ${u.id}">
-                                    <option th:each="r : ${roles}" th:value="${r.name()}" th:text="${r.label}"
-                                            th:selected="${r == u.role}">Role</option>
-                                </select>
-                                <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
-                            </form>
-                        </td>
-                        <td><span class="badge" th:classappend="${u.enabled} ? 'text-bg-success' : 'text-bg-secondary'"
+                        <td data-label="Name" class="fw-semibold" th:text="${u.fullName}">Name</td>
+                        <td data-label="Email" class="text-break" th:text="${u.email}">email</td>
+                        <td data-label="Role"><span class="badge text-bg-primary" th:text="${u.role.label}">Role</span></td>
+                        <td data-label="Status"><span class="badge" th:classappend="${u.enabled} ? 'text-bg-success' : 'text-bg-secondary'"
                                   th:text="${u.enabled} ? 'Active' : 'Disabled'">Active</span></td>
-                        <td>
-                            <div class="d-flex gap-1">
-                                <form th:action="@{/admin/users/{id}/toggle(id=${u.id})}" method="post">
-                                    <button type="submit" class="btn btn-sm btn-outline-secondary"
-                                            th:text="${u.enabled} ? 'Disable' : 'Enable'">Disable</button>
-                                </form>
-                                <form th:action="@{/admin/users/{id}/delete(id=${u.id})}" method="post"
-                                      onsubmit="return confirm('Delete this user permanently? This cannot be undone.');">
-                                    <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                                </form>
+                        <td data-label="" class="text-end">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"
+                                        aria-expanded="false" th:attr="aria-label=${'Actions for ' + u.fullName}">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" th:href="@{/admin/users/{id}/edit(id=${u.id})}">
+                                        <i class="bi bi-pencil me-2"></i>Edit user</a></li>
+                                    <li><a class="dropdown-item" th:href="@{/admin/users/{id}/activity(id=${u.id})}">
+                                        <i class="bi bi-clock-history me-2"></i>View activity</a></li>
+                                    <li><a class="dropdown-item" th:href="@{/admin/users/{id}/reset-password(id=${u.id})}">
+                                        <i class="bi bi-key me-2"></i>Reset password</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <form th:action="@{/admin/users/{id}/toggle(id=${u.id})}" method="post" class="m-0"
+                                              onsubmit="return confirm('Change the status of this account?');">
+                                            <button type="submit" class="dropdown-item">
+                                                <i class="bi bi-person-slash me-2"></i>
+                                                <span th:text="${u.enabled} ? 'Disable account' : 'Enable account'">Disable account</span>
+                                            </button>
+                                        </form>
+                                    </li>
+                                    <li>
+                                        <form th:action="@{/admin/users/{id}/delete(id=${u.id})}" method="post" class="m-0"
+                                              onsubmit="return confirm('Delete this user permanently? This cannot be undone.');">
+                                            <button type="submit" class="dropdown-item text-danger">
+                                                <i class="bi bi-trash me-2"></i>Delete</button>
+                                        </form>
+                                    </li>
+                                </ul>
                             </div>
                         </td>
                     </tr>

@@ -3,7 +3,7 @@
 <head th:replace="~{fragments/layout :: head('Assign complaint')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-4" style="max-width: 640px;">
+<main id="main-content" class="container py-4" style="max-width: 640px;">
     <h1 class="h3 mb-1">Assign complaint</h1>
     <p class="text-muted" th:text="${complaint.title}">Title</p>
     <div th:replace="~{fragments/layout :: flash}"></div>

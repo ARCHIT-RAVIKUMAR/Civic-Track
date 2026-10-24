@@ -14,6 +14,8 @@
 <body>
 
 <nav th:fragment="navbar" class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <a class="visually-hidden-focusable position-absolute bg-white text-dark p-2" style="z-index: 2000;"
+       href="#main-content">Skip to main content</a>
     <div class="container">
         <a class="navbar-brand fw-bold" th:href="@{/}"><i class="bi bi-buildings"></i> CivicTrack</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
@@ -36,18 +38,35 @@
                     <a class="nav-link" th:href="@{/admin/users}">Users</a></li>
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')">
                     <a class="nav-link" th:href="@{/admin/categories}">Categories</a></li>
+                <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                    <a class="nav-link" th:href="@{/admin/audit}">Audit log</a></li>
             </ul>
             <ul class="navbar-nav align-items-lg-center gap-lg-2">
                 <li class="nav-item" sec:authorize="isAnonymous()">
                     <a class="nav-link" th:href="@{/login}">Log in</a></li>
                 <li class="nav-item" sec:authorize="isAnonymous()">
                     <a class="btn btn-light btn-sm" th:href="@{/register}">Register</a></li>
-                <li class="nav-item" sec:authorize="isAuthenticated()">
-                    <a class="nav-link position-relative" th:href="@{/notifications}" aria-label="Notifications">
+                <li class="nav-item dropdown" sec:authorize="isAuthenticated()">
+                    <a class="nav-link position-relative" href="#" role="button" data-bs-toggle="dropdown"
+                       data-bs-auto-close="outside" aria-expanded="false" aria-label="Notifications">
                         <i class="bi bi-bell"></i>
                         <span class="badge rounded-pill text-bg-danger" th:if="${unreadCount != null and unreadCount > 0}"
                               th:text="${unreadCount}">0</span>
-                    </a></li>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-end p-0 notif-menu">
+                        <div class="px-3 py-2 fw-semibold border-bottom">Notifications</div>
+                        <div class="px-3 py-3 text-muted small"
+                             th:if="${recentNotifications == null or #lists.isEmpty(recentNotifications)}">You are all caught up.</div>
+                        <form class="m-0" method="post" th:each="n : ${recentNotifications}"
+                              th:action="@{/notifications/{id}/open(id=${n.id})}">
+                            <button type="submit" class="dropdown-item notif-item" th:classappend="${!n.read} ? 'fw-bold'">
+                                <span th:text="${n.title}">Title</span><br>
+                                <small class="text-muted fw-normal" th:text="${n.createdAtDisplay}">Date</small>
+                            </button>
+                        </form>
+                        <a class="dropdown-item text-center border-top small py-2" th:href="@{/notifications}">View all notifications</a>
+                    </div>
+                </li>
                 <li class="nav-item" sec:authorize="isAuthenticated()">
                     <a class="nav-link small" th:href="@{/profile}">
                         <i class="bi bi-person-circle"></i> <span sec:authentication="name">user</span></a></li>
@@ -73,6 +92,122 @@
         <div class="mt-1">Built with Java 21, Spring Boot, Thymeleaf and PostgreSQL</div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        (function () {
+            // Show a "please wait" state on submit buttons, so slow requests do not look frozen
+            document.addEventListener('submit', function (e) {
+                var form = e.target;
+                if (e.defaultPrevented || form.hasAttribute('data-no-lock')) { return; }
+                var buttons = form.querySelectorAll('button[type="submit"]');
+                setTimeout(function () {
+                    buttons.forEach(function (b) {
+                        b.setAttribute('data-original', b.innerHTML);
+                        b.disabled = true;
+                        b.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span> Please wait...';
+                    });
+                }, 0);
+            });
+            // Coming back with the browser's Back button: restore the buttons
+            window.addEventListener('pageshow', function (e) {
+                if (!e.persisted) { return; }
+                document.querySelectorAll('button[data-original]').forEach(function (b) {
+                    b.disabled = false;
+                    b.innerHTML = b.getAttribute('data-original');
+                    b.removeAttribute('data-original');
+                });
+            });
+            // Show / hide password buttons
+            document.querySelectorAll('.toggle-password').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var input = document.getElementById(btn.getAttribute('data-target'));
+                    if (!input) { return; }
+                    var show = input.type === 'password';
+                    input.type = show ? 'text' : 'password';
+                    btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+                    btn.querySelector('i').className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+                });
+            });
+            // Caps Lock warning under password fields
+            document.querySelectorAll('input[type="password"]').forEach(function (input) {
+                var warn = document.createElement('div');
+                warn.className = 'small text-warning-emphasis d-none mt-1';
+                warn.textContent = 'Caps Lock is on';
+                (input.closest('.input-group') || input).insertAdjacentElement('afterend', warn);
+                function check(e) {
+                    if (e.getModifierState) { warn.classList.toggle('d-none', !e.getModifierState('CapsLock')); }
+                }
+                input.addEventListener('keydown', check);
+                input.addEventListener('keyup', check);
+                input.addEventListener('blur', function () { warn.classList.add('d-none'); });
+            });
+            // Password strength bar for new passwords
+            document.querySelectorAll('input[data-password-rules]').forEach(function (input) {
+                var box = document.createElement('div');
+                box.className = 'mt-2';
+                box.innerHTML = '<div class="progress" style="height: 6px;">'
+                    + '<div class="progress-bar" role="progressbar" style="width: 0%"></div></div>'
+                    + '<div class="small mt-1" aria-live="polite"></div>';
+                (input.closest('.input-group') || input).insertAdjacentElement('afterend', box);
+                var bar = box.querySelector('.progress-bar');
+                var label = box.querySelector('.small');
+                var levels = [
+                    { width: '25%', bar: 'bg-danger', text: 'text-danger', name: 'Weak' },
+                    { width: '50%', bar: 'bg-warning', text: 'text-warning-emphasis', name: 'Fair' },
+                    { width: '75%', bar: 'bg-info', text: 'text-info-emphasis', name: 'Good' },
+                    { width: '100%', bar: 'bg-success', text: 'text-success', name: 'Strong' }
+                ];
+                function update() {
+                    var v = input.value;
+                    if (!v) {
+                        bar.style.width = '0%';
+                        label.className = 'small mt-1 text-muted';
+                        label.textContent = 'At least 8 characters, with a letter and a number.';
+                        return;
+                    }
+                    var meetsRules = v.length >= 8 && /\p{L}/u.test(v) && /[0-9]/.test(v);
+                    var level;
+                    var hint = '';
+                    if (!meetsRules) {
+                        level = 0;
+                        hint = ' - use at least 8 characters with a letter and a number';
+                    } else {
+                        var extras = (v.length >= 12 ? 1 : 0)
+                            + (/\p{Ll}/u.test(v) && /\p{Lu}/u.test(v) ? 1 : 0)
+                            + (/[^\p{L}0-9]/u.test(v) ? 1 : 0);
+                        level = extras === 0 ? 1 : (extras === 1 ? 2 : 3);
+                        if (level < 3) { hint = ' - add length, capitals or a symbol to strengthen it'; }
+                    }
+                    var l = levels[level];
+                    bar.style.width = l.width;
+                    bar.className = 'progress-bar ' + l.bar;
+                    label.className = 'small mt-1 ' + l.text;
+                    label.textContent = 'Password strength: ' + l.name + hint;
+                }
+                input.addEventListener('input', update);
+                update();
+            });
+            // "Back" buttons return to the page you came from (falls back to the link when there is none)
+            document.querySelectorAll('a[data-back]').forEach(function (link) {
+                link.addEventListener('click', function (e) {
+                    try {
+                        var ref = document.referrer ? new URL(document.referrer) : null;
+                        if (ref && ref.origin === location.origin && ref.pathname !== location.pathname && history.length > 1) {
+                            e.preventDefault();
+                            history.back();
+                        }
+                    } catch (err) { /* use the normal link */ }
+                });
+            });
+            // Success messages fade away by themselves
+            document.querySelectorAll('.alert-success').forEach(function (alertBox) {
+                setTimeout(function () {
+                    alertBox.style.transition = 'opacity .5s';
+                    alertBox.style.opacity = '0';
+                    setTimeout(function () { alertBox.remove(); }, 600);
+                }, 6000);
+            });
+        })();
+    </script>
 </footer>
 
 </body>

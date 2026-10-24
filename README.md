@@ -1,108 +1,327 @@
 # CivicTrack - Civic Issue Reporting and Management System
 
-Citizens report public problems, municipal authorities review and assign them, field workers update the work.
-Built with **Java 21, Spring Boot 3.5, Thymeleaf, Bootstrap, Spring Security, Spring Data JPA, Flyway, PostgreSQL (Supabase)**.
-College demonstration project - not a production municipal service.
+**Live demo: https://civic-track-ekj7.onrender.com/**
 
-> **Tested:** 42 automated tests pass (`mvn test`), and the full complaint lifecycle was run manually for all four roles.
+Citizens report public problems (potholes, garbage, broken streetlights, water leakage, drainage issues ...),
+municipal authorities review, prioritise and assign them, and field workers update the progress until the work is
+verified and closed.
+
+> **About the live demo:** it runs on a free hosting tier. After a period of inactivity the server goes to sleep,
+> so the **first page can take about a minute to load**. Photos uploaded to the live demo are stored on the server's
+> disk by default and can disappear when the server restarts (see *Photo storage*).
+>
+> This is a college demonstration project, not a production municipal service.
+
+---
+
+## Table of contents
+1. [Features](#features)
+2. [Complaint workflow](#complaint-workflow)
+3. [Technology stack](#technology-stack)
+4. [Architecture and project structure](#architecture-and-project-structure)
+5. [Java OOP concepts used](#java-oop-concepts-used)
+6. [Database](#database)
+7. [Security](#security)
+8. [Run it locally](#run-it-locally)
+9. [Configuration (environment variables)](#configuration-environment-variables)
+10. [Demo accounts](#demo-accounts)
+11. [Testing](#testing)
+12. [Deployment](#deployment)
+13. [Optional features and limitations](#optional-features-and-limitations)
+14. [Screenshots](#screenshots)
+15. [More documents](#more-documents)
+
+---
 
 ## Features
-- Register / log in (BCrypt-hashed passwords), role-based access (Citizen, Authority, Field Worker, Admin)
-- Citizens: submit complaints (title, description, category, location, optional JPEG/PNG photo), track status, view history timeline, give feedback after resolution
-- Authority: filter by status / category / date, pagination, start review, set priority, assign / re-assign workers, reject with reason, verify and close, send work back, CSV export
-- Field workers: see assigned complaints, start work, add progress notes, mark completed
-- Admin: system overview, create staff users, change roles, enable/disable users, manage categories
-- Workflow enforced in code: `Submitted -> Under Review -> Assigned -> In Progress -> Resolved -> Closed` (+ `Rejected`)
-- Status history table records old status, new status, user, time and notes
 
-## Prerequisites
-JDK 21, Maven 3.9+ (or IntelliJ's bundled Maven), Git, a free Supabase project.
+### Citizen
+- Register and log in; change name and password from **My profile**
+- Report a complaint: title, description, category, location text, **optional map pin** (click the map or use "my current location") and an optional JPEG/PNG photo
+- **Duplicate warning** when a similar open complaint already exists nearby
+- Track every complaint with a **status timeline**; paged list of own complaints
+- **Comment** on a complaint (talk to the authority / worker), **withdraw** it before it is assigned, **reopen** it within 7 days of closing if it is not really fixed
+- Leave **feedback** (1-5 stars) after resolution
+- Notifications (bell icon) when the status changes or someone comments
 
-## First run checklist
-1. **Create `.env`** in the project root (copy `.env.example`) and fill in your Supabase values:
+### Municipal authority
+- Dashboard with search, filters (status, category, date, **overdue only**), paging and **CSV export**
+- Status chips with counts, plus charts (by status, by category)
+- Start review, set priority, **assign / re-assign** a field worker, **reject with a reason**, verify and **close**, or send work back to the worker
+- **Overdue marker**: a red badge when open work is older than the target for its priority (Urgent 1 day, High 3, Medium 7, Low 14)
+- Notified when a complaint is reported, completed by a worker, reopened or withdrawn
+
+### Field worker
+- List and **map view** of assigned complaints (pins, popups, "get directions" link)
+- Start work, add progress notes, mark work as completed for verification
+- Notified when a complaint is assigned or sent back
+
+### Administrator
+- **System overview**: key numbers, recent complaints, charts and status breakdown
+- **Users**: create staff accounts; one actions menu per user - **edit name, email and role**, view **activity timeline**, **reset password**, disable / enable, delete (only when the account has no history)
+- **Categories**: add, edit, hide / show
+- **Audit log** of every status change, assignment, priority change and note, with **CSV export**
+- **Per-user activity timeline**: logins, failed logins, lock-outs, password and account changes, and the complaints, status changes, comments and feedback made by that user (no passwords or IP addresses are stored)
+- Read-only access to complaints (admins cannot comment or change work)
+
+### For everyone
+- Responsive layout (tables turn into cards on phones), accessible forms, skip-to-content link, keyboard focus outlines
+- Password fields with **show / hide** button, live **strength bar** and Caps Lock warning
+- Friendly error pages, empty states, success / error messages, "please wait" state on buttons
+- Account lock-out: 5 wrong passwords lock the account for 10 minutes
+
+---
+
+## Complaint workflow
+
+```mermaid
+stateDiagram-v2
+    [*] --> Submitted
+    Submitted --> UnderReview: authority starts review
+    Submitted --> Rejected: authority rejects (reason required)
+    Submitted --> Withdrawn: citizen withdraws
+    UnderReview --> Assigned: authority assigns a field worker
+    UnderReview --> Rejected
+    UnderReview --> Withdrawn
+    Assigned --> InProgress: worker starts work
+    InProgress --> Resolved: worker marks completed
+    Resolved --> Closed: authority verifies and closes
+    Resolved --> InProgress: authority sends work back
+    Closed --> UnderReview: citizen reopens (within 7 days)
+```
+
+The allowed moves are defined once, in `ComplaintStatus.allowedNext()`, and enforced by `Complaint.changeStatus()`
+and the service layer. Every change is stored in `complaint_status_history` with the previous status, new status,
+user, time and notes.
+
+---
+
+## Technology stack
+
+| Area | Technology |
+|------|------------|
+| Language | Java 21 |
+| Backend | Spring Boot 3.5 (Web, Validation, Data JPA, Security) |
+| Frontend | Thymeleaf, HTML, CSS, Bootstrap 5, Bootstrap Icons |
+| Maps and charts | Leaflet + OpenStreetMap (no API key), Chart.js |
+| Database | PostgreSQL on Supabase; Hibernate / Spring Data JPA; Flyway migrations |
+| Build and tests | Maven, JUnit 5, Mockito, Spring Boot Test, H2 (tests only) |
+| Hosting | Docker image on Render (free tier) |
+
+---
+
+## Architecture and project structure
+
+Layered design: **controller -> service (interface + implementation) -> repository -> entity**, with DTOs for form
+validation. Controllers contain no business rules; services use constructor injection.
+
+```
+src/main/java/com/civictrack/
+  config/       SecurityConfig, DataInitializer
+  controller/   Home, Auth, Citizen, Complaint, Authority, Worker, Admin, Profile, Notification (+ helpers)
+  dto/          form objects with validation annotations
+  entity/       BaseEntity, User, Category, Complaint, Assignment, StatusHistory, Feedback,
+                ComplaintComment, Notification, ActivityLog
+  enums/        Role, ComplaintStatus, Priority, ActivityType
+  exception/    custom exceptions + GlobalExceptionHandler
+  repository/   Spring Data interfaces + ComplaintSpecs (dynamic filters)
+  security/     CustomUserDetails(+Service), LoginAttemptService + listener
+  service/      interfaces: Complaint, User, Category, Feedback, Inbox, Activity, Notification, FileStorage
+  service/impl/ implementations and helpers (CsvUtil, ImageFiles, LocationSimilarity)
+  validation/   @StrongPassword
+src/main/resources/
+  db/migration/ V1 ... V5 (Flyway)
+  templates/    Thymeleaf pages and fragments
+  static/css/   app.css
+src/test/       unit, repository, security and page-rendering tests
+docs/           ER diagram, deployment guide, report outline, demo checklist
+```
+
+---
+
+## Java OOP concepts used
+
+| Concept | Where | How |
+|---------|-------|-----|
+| **Encapsulation** | `Complaint`, `User` | Private fields; no `setStatus()`. `changeStatus()` validates every move; constructors validate their input. |
+| **Abstraction** | `ComplaintService`, `UserService`, `NotificationService`, `FileStorageService` | Controllers depend on interfaces, not implementations. |
+| **Inheritance** | `BaseEntity` (`@MappedSuperclass`) | Shared id and created / updated timestamps for all entities. The only inheritance used. |
+| **Polymorphism** | `NotificationService` -> `InAppNotificationService`, `LogNotificationService`, `EmailNotificationService`; `FileStorageService` -> `LocalFileStorageService`, `SupabaseFileStorageService` | `ComplaintServiceImpl` receives *all* notification implementations and calls each one the same way. Storage is chosen by configuration. |
+| **Composition** | `ComplaintServiceImpl`, `UserServiceImpl` | Built from repositories and other services through constructor injection. |
+| **Enums with behaviour** | `ComplaintStatus`, `Priority`, `Role`, `ActivityType` | The workflow rules live in the status enum; priority knows its target time. |
+| **Exception handling** | `exception` package | `ResourceNotFoundException`, `ForbiddenOperationException`, `BusinessRuleException`, `InvalidStatusTransitionException`; one `GlobalExceptionHandler` shows friendly pages and never a stack trace. |
+| **SOLID** | Layers and interfaces | Single responsibility per layer; dependency inversion through interfaces; adding a new notification channel needs no change to existing code. |
+
+---
+
+## Database
+
+PostgreSQL schema managed by **Flyway** (Hibernate only *validates* that entities match the tables). UUID primary keys,
+enums stored as strings, foreign keys, indexes and `CHECK` constraints. See [`docs/ER_DIAGRAM.md`](docs/ER_DIAGRAM.md).
+
+| Table | Purpose |
+|-------|---------|
+| `users` | Accounts and roles |
+| `complaint_categories` | Complaint types |
+| `complaints` | The complaints (with optional latitude / longitude) |
+| `assignments` | Which worker is assigned (one active assignment per complaint) |
+| `complaint_status_history` | Append-only history / audit trail |
+| `feedback` | Citizen rating after resolution |
+| `complaint_comments` | Conversation on a complaint |
+| `notifications` | In-app notifications |
+| `activity_log` | Account events (logins, security, admin actions) |
+
+| Migration | Content |
+|-----------|---------|
+| V1 | Core schema |
+| V2 | Seed categories |
+| V3 | Notifications, `WITHDRAWN` status |
+| V4 | Comments, map coordinates |
+| V5 | Activity log |
+
+Never edit a migration that has already run - add a new one.
+
+---
+
+## Security
+
+- Passwords hashed with **BCrypt**; strength rules enforced on the server (8+ characters, a letter and a number)
+- **Role-based access** enforced on the server in two layers: URL rules in `SecurityConfig` and role / ownership checks inside the services (e.g. a citizen can only see their own complaints, a worker only their assignments)
+- **CSRF protection**, session-fixation protection, HTTP-only SameSite cookies (Secure in production)
+- **Account lock-out** after repeated wrong passwords; failed logins and lock-outs are recorded
+- Validated uploads (size limit, real file signature, random file names; photos are served only through an access-checked endpoint)
+- CSV exports neutralise spreadsheet formulas; exports never contain passwords
+- Secrets only in environment variables; error pages never show stack traces or internal details
+
+---
+
+## Run it locally
+
+**Requirements:** JDK 21, Maven 3.9+ (IntelliJ includes Maven), Git, a free [Supabase](https://supabase.com) project.
+
+1. Clone the repository and open it in IntelliJ IDEA.
+2. Copy `.env.example` to `.env` (it is git-ignored) and fill in your Supabase details:
    ```
    DB_URL=jdbc:postgresql://<host>:5432/postgres?sslmode=require
-   DB_USERNAME=postgres.<project-ref>     # or "postgres" for the direct connection
-   DB_PASSWORD=<your password>
+   DB_USERNAME=<user>
+   DB_PASSWORD=<password>
    ```
-   Supabase: *Project Settings -> Database -> Connection string*. If the direct host fails on your network (IPv6 only),
-   use the **Session pooler** string (port 5432). Avoid the *Transaction* pooler (port 6543): it breaks Flyway and prepared statements.
-   Passwords containing `\` are awkward in `.env`; pick a password without backslashes.
-2. Run: `mvn spring-boot:run` (IntelliJ: run `CivicTrackApplication`). Flyway creates all tables on first start.
-3. Open http://localhost:8080.
-4. Dev profile creates demo accounts (never in production):
+   Use the Supabase **Session pooler** connection details if the direct host does not work on your network.
+   Avoid the Transaction pooler (port 6543).
+3. Run `CivicTrackApplication` (or `mvn spring-boot:run`). Flyway creates the tables on first start.
+4. Open http://localhost:8080.
 
-   | Role | Email | Password |
-   |------|-------|----------|
-   | Admin | admin@civictrack.local | Admin@1234 |
-   | Authority | authority@civictrack.local | Demo@1234 |
-   | Field worker | worker@civictrack.local | Demo@1234 |
-   | Citizen | citizen@civictrack.local | Demo@1234 |
+The default profile is `dev`, which creates demo accounts so you can try every role immediately.
+**Never enable demo accounts in production** (`civictrack.seed-demo-data=false`; the `prod` profile already does this).
 
-5. Demo flow: citizen submits -> authority "Start review" -> "Assign" -> worker "Start work", note, "Mark as completed" -> authority "Verify and close" -> citizen leaves feedback.
+---
 
-## Tests
+## Configuration (environment variables)
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | Yes | PostgreSQL connection |
+| `SPRING_PROFILES_ACTIVE` | Production | `prod` (the Docker image sets it) |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Production | Creates the first administrator if none exists with that email |
+| `PORT` | Set by host | HTTP port (default 8080) |
+| `STORAGE_MODE` | No | `local` (default) or `supabase` for permanent photo storage |
+| `SUPABASE_URL`, `SUPABASE_KEY`, `SUPABASE_BUCKET` | Only for `supabase` storage | Private storage bucket and server key (never commit the key) |
+| `UPLOAD_DIR` | No | Folder for local photo storage |
+| `NOTIFICATION_MODE` | No | `log` (default) or `email` (needs SMTP settings) |
+
+Never commit `.env` or any credential.
+
+---
+
+## Demo accounts
+
+Create your own short demo accounts from **Admin -> Users** (and register a citizen on the Register page), then list
+them here for the viva:
+
+| Role | Email | Password |
+|------|-------|----------|
+| Administrator | *(your admin email)* | *(your password)* |
+| Municipal authority | *(add)* | *(add)* |
+| Field worker | *(add)* | *(add)* |
+| Citizen | *(add)* | *(add)* |
+
+If the repository or this README is public, **do not publish real passwords** - share them separately.
+
+---
+
+## Testing
+
 ```
 mvn test            # command line
 ```
-IntelliJ: right-click `src/test/java` -> *Run 'All Tests'*. Tests use an in-memory H2 database (profile `test`), so they need no Supabase connection.
+IntelliJ: right-click `src/test/java` -> *Run 'All Tests'*. Tests use an in-memory H2 database (profile `test`), so no
+Supabase connection is needed.
 
 | Test class | Covers |
 |------------|--------|
-| `ComplaintStatusTest` | valid / invalid status transitions |
-| `ComplaintTest` | entity validation and encapsulation |
-| `ComplaintServiceImplTest` | assignment, role permissions, ownership rules (Mockito) |
-| `UserServiceImplTest` | registration, password hashing, duplicate email |
-| `ComplaintRepositoryTest` | JPA mapping and filter specifications |
-| `SecurityAccessTest` | protected routes, CSRF, registration, login, disabled users |
+| `ComplaintStatusTest`, `ComplaintTest` | Valid / invalid status transitions, entity rules, overdue logic, map coordinates |
+| `ComplaintServiceImplTest` | Assignment, permissions, comments, withdraw, reopen, notifications |
+| `UserServiceImplTest` | Registration, hashing, admin edit / reset / delete rules, CSV export |
+| `CategoryServiceImplTest`, `InboxServiceImplTest`, `ActivityServiceImplTest` | Category editing, notification ownership, activity timeline |
+| `LoginAttemptServiceTest` | Lock-out rules |
+| `LocationSimilarityTest`, `CsvUtilTest`, `ImageFilesTest`, `ChartDataHelperTest` | Helper logic |
+| `ComplaintRepositoryTest` | JPA mappings, filters, search, overdue filter |
+| `SecurityAccessTest` | Protected routes by role, CSRF, registration, login, lock-out, page rendering |
+| `CivicTrackApplicationTests` | Application context starts |
 
-## Project structure
-```
-config/      SecurityConfig, DataInitializer
-controller/  Home, Auth, Citizen, Complaint (shared), Authority, Worker, Admin
-dto/         form objects with validation annotations
-entity/      BaseEntity, User, Category, Complaint, Assignment, StatusHistory, Feedback
-enums/       Role, ComplaintStatus (with transition rules), Priority
-exception/   custom exceptions + GlobalExceptionHandler
-repository/  Spring Data interfaces + ComplaintSpecs (dynamic filters)
-service/     interfaces (ComplaintService, NotificationService, ...)
-service/impl implementations (business rules)
-security/    CustomUserDetails, CustomUserDetailsService
-validation/  @StrongPassword
-```
-
-## Java OOP concepts in this project
-| Concept | Where | How |
-|---------|-------|-----|
-| Encapsulation | `Complaint`, `User` | private fields, no `setStatus()`; `changeStatus()` validates; constructors validate input |
-| Abstraction | `ComplaintService`, `NotificationService`, `FileStorageService` | controllers depend on interfaces, not implementations |
-| Inheritance | `BaseEntity` (`@MappedSuperclass`) | shared id + timestamps for all entities. The only inheritance used. |
-| Polymorphism | `NotificationService` -> `LogNotificationService` / `EmailNotificationService` | same call, different delivery; chosen by `civictrack.notification.mode` |
-| Composition | `ComplaintServiceImpl` | built from repositories + other services via constructor injection |
-| Enums | `Role`, `Priority`, `ComplaintStatus` | `ComplaintStatus.allowedNext()` holds the workflow rules |
-| Exceptions | `exception` package | `ResourceNotFoundException`, `ForbiddenOperationException`, `BusinessRuleException`, `InvalidStatusTransitionException`; `GlobalExceptionHandler` shows friendly pages, never stack traces |
-| SOLID | layers + interfaces | single responsibility per layer; dependency inversion; new notification channel needs no change to existing code |
-
-## Security summary
-BCrypt passwords; URL rules in `SecurityConfig` **and** role/ownership checks in the services; CSRF on; session fixation protection;
-HTTP-only SameSite cookies (Secure in prod); validated uploads (size + real file signature, random file names, served only through an access-checked endpoint);
-no secrets in source - all from environment variables; stack traces never shown.
-
-## Database
-See `docs/ER_DIAGRAM.md` and `src/main/resources/db/migration/`. Flyway applies `V1` (schema) and `V2` (seed categories) once, in order,
-and records them in `flyway_schema_history`. Hibernate runs in `validate` mode: if an entity does not match a table, startup fails with a clear message.
-**Never edit an applied migration** - add `V3__...sql` instead.
-
-## Optional features
-| Feature | Status | Extra requirement |
-|---------|--------|-------------------|
-| Image upload | included | Free hosts (e.g. Render Free) lose files on restart. Use Supabase Storage/S3 for permanence (not implemented) |
-| Pagination + filters | included | none |
-| CSV export | included | none |
-| Priority levels | included | none |
-| Dashboard statistics | included (counts) | none |
-| E-mail notifications | included, off by default | SMTP account: set `NOTIFICATION_MODE=email` and `spring.mail.*` (host, port, username, password) |
-| Duplicate detection, maps/geolocation | not implemented | maps would need an API key |
+---
 
 ## Deployment
-See `docs/DEPLOYMENT.md`.
+
+Deployed as a Docker container on **Render (free tier)**, with the database on **Supabase**:
+
+1. Push the repository to GitHub.
+2. Render -> New -> Web Service -> select the repository -> runtime **Docker**, instance type **Free**.
+3. Add the environment variables from the table above (`DB_*`, `ADMIN_*`).
+4. Every push to `main` redeploys automatically; Flyway applies new migrations on start-up.
+
+Full guide, checklist and troubleshooting: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+Free tiers can change or sleep and are never guaranteed - keep a local copy ready for demonstrations.
+
+---
+
+## Optional features and limitations
+
+| Feature | Status |
+|---------|--------|
+| Map pins, comments, charts, CSV export, overdue marker, reopen, audit log, activity timeline | Included |
+| Permanent photo storage in Supabase Storage | Implemented, **off by default** (needs a private bucket and server key) |
+| E-mail notifications | Implemented, **off by default** (needs an SMTP account) |
+| Forgot-password by e-mail | Not included - an administrator resets passwords |
+| Live push notifications | Not included - the bell updates when a page loads |
+
+**Known limitations**
+- Login lock-out counters are kept in memory (they reset when the server restarts).
+- Photos on the free host are lost on restart unless Supabase storage is enabled.
+- Maps use OpenStreetMap tiles (light use) and charts / icons load from a CDN, so they need internet access.
+- Changing a user's role or email takes effect the next time they log in.
+
+---
+
+## Screenshots
+
+Add your screenshots to `docs/screenshots/` and link them here:
+
+| Page | Screenshot |
+|------|------------|
+| Landing page | `docs/screenshots/landing.png` |
+| Citizen: report form with map | `docs/screenshots/report.png` |
+| Complaint timeline and comments | `docs/screenshots/detail.png` |
+| Authority dashboard | `docs/screenshots/authority.png` |
+| Worker map | `docs/screenshots/worker-map.png` |
+| Admin overview and charts | `docs/screenshots/admin.png` |
+| Users and activity timeline | `docs/screenshots/users.png` |
+| Passing tests | `docs/screenshots/tests.png` |
+
+---
+
+## More documents
+- [`docs/ER_DIAGRAM.md`](docs/ER_DIAGRAM.md) - database diagram
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) - deployment guide and checklist
+- [`docs/REPORT_OUTLINE.md`](docs/REPORT_OUTLINE.md) - college report outline
+- [`docs/DEMO_CHECKLIST.md`](docs/DEMO_CHECKLIST.md) - demo script and checklist

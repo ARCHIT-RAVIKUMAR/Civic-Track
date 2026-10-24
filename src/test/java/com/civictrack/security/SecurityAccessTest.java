@@ -1,6 +1,10 @@
 package com.civictrack.security;
 
+import com.civictrack.entity.Category;
 import com.civictrack.entity.User;
+import com.civictrack.enums.ActivityType;
+import com.civictrack.repository.ActivityLogRepository;
+import com.civictrack.repository.CategoryRepository;
 import com.civictrack.enums.Role;
 import com.civictrack.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -35,6 +39,8 @@ class SecurityAccessTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private UserRepository userRepository;
     @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private ActivityLogRepository activityLogRepository;
+    @Autowired private CategoryRepository categoryRepository;
 
     @Test
     void publicPagesAreOpen() throws Exception {
@@ -211,5 +217,234 @@ class SecurityAccessTest {
 
         User saved = userRepository.findByEmail("pw2@test.com").orElseThrow();
         assertTrue(passwordEncoder.matches("OldPassw0rd", saved.getPasswordHash()));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminOverviewWithChartsLoads() throws Exception {
+        mockMvc.perform(get("/admin/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/dashboard"))
+                .andExpect(model().attributeExists("statusLabels", "categoryLabels"));
+    }
+
+    @Test
+    @WithMockUser(username = "auditor@test.com", roles = "ADMIN")
+    void adminAuditLogAndCategoriesLoad() throws Exception {
+        userRepository.save(new User("Auditor", "auditor@test.com", passwordEncoder.encode("Passw0rd1"), Role.ADMIN));
+
+        mockMvc.perform(get("/admin/audit")).andExpect(status().isOk()).andExpect(view().name("admin/audit"));
+        mockMvc.perform(get("/admin/categories")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "AUTHORITY")
+    void authorityCannotOpenAuditLog() throws Exception {
+        mockMvc.perform(get("/admin/audit")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "officer@test.com", roles = "AUTHORITY")
+    void authorityDashboardWithChartsAndSearchLoads() throws Exception {
+        userRepository.save(new User("Officer", "officer@test.com", passwordEncoder.encode("Passw0rd1"), Role.AUTHORITY));
+
+        mockMvc.perform(get("/authority/dashboard").param("q", "pothole"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("authority/dashboard"));
+    }
+
+    @Test
+    @WithMockUser(username = "mapper@test.com", roles = "CITIZEN")
+    void complaintFormWithMapLoads() throws Exception {
+        userRepository.save(new User("Mapper", "mapper@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(get("/citizen/complaints/new"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("citizen/complaint-form"));
+    }
+
+    @Test
+    void loginsAndFailedLoginsAreRecordedInTheActivityLog() throws Exception {
+        User user = userRepository.save(new User("Tracked", "tracked@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(formLogin("/login").user("tracked@test.com").password("wrong"));
+        mockMvc.perform(formLogin("/login").user("tracked@test.com").password("Passw0rd1"));
+
+        var types = activityLogRepository.findTop200ByUserOrderByCreatedAtDesc(user).stream()
+                .map(a -> a.getType()).toList();
+        assertTrue(types.contains(ActivityType.LOGIN_FAILED));
+        assertTrue(types.contains(ActivityType.LOGIN_SUCCESS));
+    }
+
+    @Test
+    @WithMockUser(username = "boss@test.com", roles = "ADMIN")
+    void adminCanOpenAUsersActivityPage() throws Exception {
+        userRepository.save(new User("Boss", "boss@test.com", passwordEncoder.encode("Passw0rd1"), Role.ADMIN));
+        User subject = userRepository.save(new User("Subject", "subject@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(get("/admin/users")).andExpect(status().isOk());
+        mockMvc.perform(get("/admin/users/" + subject.getId() + "/activity"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/user-activity"));
+    }
+
+    @Test
+    @WithMockUser(roles = "AUTHORITY")
+    void nonAdminsCannotSeeAccountActivity() throws Exception {
+        mockMvc.perform(get("/admin/users/" + UUID.randomUUID() + "/activity")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "worker2@test.com", roles = "FIELD_WORKER")
+    void workerDashboardLoadsWithResponsiveTable() throws Exception {
+        userRepository.save(new User("Worker Two", "worker2@test.com", passwordEncoder.encode("Passw0rd1"), Role.FIELD_WORKER));
+
+        mockMvc.perform(get("/worker/dashboard")).andExpect(status().isOk()).andExpect(view().name("worker/dashboard"));
+    }
+
+    @Test
+    @WithMockUser(username = "mapworker@test.com", roles = "FIELD_WORKER")
+    void workerMapPageLoads() throws Exception {
+        userRepository.save(new User("Map Worker", "mapworker@test.com", passwordEncoder.encode("Passw0rd1"), Role.FIELD_WORKER));
+
+        mockMvc.perform(get("/worker/map")).andExpect(status().isOk()).andExpect(view().name("worker/map"));
+    }
+
+    @Test
+    @WithMockUser(roles = "CITIZEN")
+    void citizenCannotOpenWorkerMap() throws Exception {
+        mockMvc.perform(get("/worker/map")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "exporter@test.com", roles = "ADMIN")
+    void adminCanDownloadCsvExports() throws Exception {
+        userRepository.save(new User("Exporter", "exporter@test.com", passwordEncoder.encode("Passw0rd1"), Role.ADMIN));
+
+        mockMvc.perform(get("/admin/users/export"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().contentTypeCompatibleWith("text/csv"));
+        mockMvc.perform(get("/admin/audit/export")).andExpect(status().isOk());
+    }
+
+    @Test
+    @WithMockUser(roles = "AUTHORITY")
+    void authorityCannotDownloadAdminExports() throws Exception {
+        mockMvc.perform(get("/admin/users/export")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/admin/audit/export")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "late@test.com", roles = "AUTHORITY")
+    void authorityOverdueFilterLoads() throws Exception {
+        userRepository.save(new User("Late Officer", "late@test.com", passwordEncoder.encode("Passw0rd1"), Role.AUTHORITY));
+
+        mockMvc.perform(get("/authority/dashboard").param("overdue", "true"))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeExists("overdueCount"));
+    }
+
+    @Test
+    @WithMockUser(username = "resetter@test.com", roles = "ADMIN")
+    void adminCanResetAnotherUsersPasswordAndTheyCanLogInWithIt() throws Exception {
+        userRepository.save(new User("Resetter", "resetter@test.com", passwordEncoder.encode("Passw0rd1"), Role.ADMIN));
+        User forgetful = userRepository.save(new User("Forgetful", "forgetful@test.com", passwordEncoder.encode("OldPassw0rd"), Role.CITIZEN));
+
+        mockMvc.perform(get("/admin/users/" + forgetful.getId() + "/reset-password"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/reset-password"));
+
+        mockMvc.perform(post("/admin/users/" + forgetful.getId() + "/reset-password").with(csrf())
+                        .param("newPassword", "TempPass123")
+                        .param("confirmPassword", "TempPass123"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/users"));
+
+        mockMvc.perform(formLogin("/login").user("forgetful@test.com").password("TempPass123"))
+                .andExpect(redirectedUrl("/dashboard"));
+    }
+
+    @Test
+    @WithMockUser(roles = "CITIZEN")
+    void citizenCannotOpenThePasswordResetPage() throws Exception {
+        mockMvc.perform(get("/admin/users/" + UUID.randomUUID() + "/reset-password")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "editor@test.com", roles = "ADMIN")
+    void adminCanEditAUsersNameAndRoleFromTheEditPage() throws Exception {
+        userRepository.save(new User("Editor", "editor@test.com", passwordEncoder.encode("Passw0rd1"), Role.ADMIN));
+        User target = userRepository.save(new User("Old Name", "target@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(get("/admin/users/" + target.getId() + "/edit"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/user-edit"));
+
+        mockMvc.perform(post("/admin/users/" + target.getId() + "/edit").with(csrf())
+                        .param("fullName", "New Name")
+                        .param("role", "FIELD_WORKER"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/users"));
+
+        User saved = userRepository.findById(target.getId()).orElseThrow();
+        org.junit.jupiter.api.Assertions.assertEquals("New Name", saved.getFullName());
+        org.junit.jupiter.api.Assertions.assertEquals(Role.FIELD_WORKER, saved.getRole());
+    }
+
+    @Test
+    @WithMockUser(roles = "CITIZEN")
+    void citizenCannotOpenTheUserEditPage() throws Exception {
+        mockMvc.perform(get("/admin/users/" + UUID.randomUUID() + "/edit")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminCanOpenTheCategoryEditPage() throws Exception {
+        Category category = categoryRepository.save(new Category("Test category", "Something"));
+
+        mockMvc.perform(get("/admin/categories/" + category.getId() + "/edit"))
+                .andExpect(status().isOk())
+                .andExpect(view().name("admin/category-edit"));
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void adminOverviewShowsEmptyStateWhenThereAreNoComplaints() throws Exception {
+        mockMvc.perform(get("/admin/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(model().attribute("chartHasData", false));
+    }
+
+    @Test
+    @WithMockUser(username = "mailer@test.com", roles = "ADMIN")
+    void adminCanChangeAUsersEmailAndTheyLogInWithTheNewOne() throws Exception {
+        userRepository.save(new User("Mailer", "mailer@test.com", passwordEncoder.encode("Passw0rd1"), Role.ADMIN));
+        User target = userRepository.save(new User("Typo Person", "typo@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(post("/admin/users/" + target.getId() + "/edit").with(csrf())
+                        .param("fullName", "Typo Person")
+                        .param("email", "fixed@test.com")
+                        .param("role", "CITIZEN"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/users"));
+
+        mockMvc.perform(formLogin("/login").user("fixed@test.com").password("Passw0rd1"))
+                .andExpect(redirectedUrl("/dashboard"));
+        mockMvc.perform(formLogin("/login").user("typo@test.com").password("Passw0rd1"))
+                .andExpect(redirectedUrl("/login?error"));
+    }
+
+    @Test
+    @WithMockUser(username = "dup@test.com", roles = "ADMIN")
+    void duplicateEmailKeepsTheAdminOnTheEditForm() throws Exception {
+        userRepository.save(new User("Dup Admin", "dup@test.com", passwordEncoder.encode("Passw0rd1"), Role.ADMIN));
+        userRepository.save(new User("Existing", "existing@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+        User target = userRepository.save(new User("Other", "other@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(post("/admin/users/" + target.getId() + "/edit").with(csrf())
+                        .param("fullName", "Other")
+                        .param("email", "existing@test.com"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/users/" + target.getId() + "/edit"));
     }
 }

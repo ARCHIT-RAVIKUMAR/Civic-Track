@@ -101,6 +101,19 @@ public class CitizenController {
         return "redirect:/complaints/" + id;
     }
 
+    @PostMapping("/complaints/{id}/reopen")
+    public String reopen(@PathVariable UUID id, @RequestParam String reason,
+                         Authentication auth, RedirectAttributes redirect) {
+        User citizen = userService.getByEmail(auth.getName());
+        try {
+            complaintService.reopen(id, reason, citizen);
+            redirect.addFlashAttribute("success", "Complaint reopened. The authority will review it again.");
+        } catch (BusinessRuleException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
+        return "redirect:/complaints/" + id;
+    }
+
     @GetMapping("/complaints/{id}/feedback")
     public String feedbackForm(@PathVariable UUID id, Authentication auth, Model model) {
         User citizen = userService.getByEmail(auth.getName());

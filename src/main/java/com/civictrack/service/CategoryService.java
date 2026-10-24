@@ -13,7 +13,11 @@ public interface CategoryService {
 
     Category getActiveById(UUID id);
 
+    Category getById(UUID id);
+
     Category create(CategoryForm form);
 
     void toggleActive(UUID id);
+
+    void update(UUID id, String name, String description);
 }

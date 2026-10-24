@@ -10,6 +10,7 @@ import java.util.Set;
  * SUBMITTED -> UNDER_REVIEW -> ASSIGNED -> IN_PROGRESS -> RESOLVED -> CLOSED
  *      \___________\__> REJECTED (with a reason)       RESOLVED -> IN_PROGRESS (sent back)
  *      \___________\__> WITHDRAWN (citizen cancels before assignment)
+ *      CLOSED -> UNDER_REVIEW (the citizen reopens it within a few days)
  */
 public enum ComplaintStatus {
     SUBMITTED("Submitted", "secondary"),
@@ -44,7 +45,8 @@ public enum ComplaintStatus {
             case ASSIGNED -> EnumSet.of(IN_PROGRESS);
             case IN_PROGRESS -> EnumSet.of(RESOLVED);
             case RESOLVED -> EnumSet.of(CLOSED, IN_PROGRESS);
-            case CLOSED, REJECTED, WITHDRAWN -> EnumSet.noneOf(ComplaintStatus.class);
+            case CLOSED -> EnumSet.of(UNDER_REVIEW); // only via the citizen's "reopen" (see ComplaintService)
+            case REJECTED, WITHDRAWN -> EnumSet.noneOf(ComplaintStatus.class);
         };
     }
 
@@ -52,7 +54,7 @@ public enum ComplaintStatus {
         return allowedNext().contains(next);
     }
 
-    /** True when no further work can happen on the complaint. */
+    /** True when the normal work on the complaint is finished (a closed one can still be reopened by the citizen). */
     public boolean isTerminal() {
         return this == CLOSED || this == REJECTED || this == WITHDRAWN;
     }

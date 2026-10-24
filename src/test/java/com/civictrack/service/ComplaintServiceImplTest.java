@@ -4,6 +4,7 @@ import com.civictrack.dto.ComplaintForm;
 import com.civictrack.entity.Assignment;
 import com.civictrack.entity.Category;
 import com.civictrack.entity.Complaint;
+import com.civictrack.entity.ComplaintComment;
 import com.civictrack.entity.StatusHistory;
 import com.civictrack.entity.User;
 import com.civictrack.enums.ComplaintStatus;
@@ -12,6 +13,7 @@ import com.civictrack.exception.BusinessRuleException;
 import com.civictrack.exception.ForbiddenOperationException;
 import com.civictrack.exception.InvalidStatusTransitionException;
 import com.civictrack.repository.AssignmentRepository;
+import com.civictrack.repository.ComplaintCommentRepository;
 import com.civictrack.repository.ComplaintRepository;
 import com.civictrack.repository.StatusHistoryRepository;
 import com.civictrack.service.impl.ComplaintServiceImpl;
@@ -22,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +42,7 @@ class ComplaintServiceImplTest {
     @Mock private ComplaintRepository complaintRepository;
     @Mock private AssignmentRepository assignmentRepository;
     @Mock private StatusHistoryRepository historyRepository;
+    @Mock private ComplaintCommentRepository commentRepository;
     @Mock private CategoryService categoryService;
     @Mock private UserService userService;
     @Mock private FileStorageService fileStorageService;
@@ -59,7 +63,7 @@ class ComplaintServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ComplaintServiceImpl(complaintRepository, assignmentRepository, historyRepository,
+        service = new ComplaintServiceImpl(complaintRepository, assignmentRepository, historyRepository, commentRepository,
                 categoryService, userService, fileStorageService, List.of(notificationService));
         citizen = userWithId("Citizen", "citizen@example.com", Role.CITIZEN);
         authority = userWithId("Authority", "auth@example.com", Role.AUTHORITY);
@@ -250,5 +254,168 @@ class ComplaintServiceImplTest {
                 .thenReturn(List.of(existing));
 
         assertTrue(service.findPossibleDuplicates(form(categoryId, "Park Avenue"), citizen).isEmpty());
+    }
+
+    // ---------------------------------------------------------------- comments, audit, map
+
+    @Test
+    void citizenCommentNotifiesAuthorities() {
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(userService.findActiveByRole(Role.AUTHORITY)).thenReturn(List.of(authority));
+
+        service.addComment(complaintId, "  The pothole is getting bigger  ", citizen);
+
+        verify(commentRepository).save(any(ComplaintComment.class));
+        verify(notificationService).notifyUser(eq(authority), anyString(), anyString(), any());
+    }
+
+    @Test
+    void authorityCommentNotifiesTheCitizen() {
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        service.addComment(complaintId, "Please send a clearer photo", authority);
+
+        verify(commentRepository).save(any(ComplaintComment.class));
+        verify(notificationService).notifyUser(eq(citizen), anyString(), anyString(), any());
+    }
+
+    @Test
+    void administratorsCannotComment() {
+        User admin = userWithId("Admin", "admin@example.com", Role.ADMIN);
+
+        assertThrows(ForbiddenOperationException.class, () -> service.addComment(complaintId, "Hello", admin));
+    }
+
+    @Test
+    void otherCitizensCannotCommentOnSomeoneElsesComplaint() {
+        User other = userWithId("Other", "other@example.com", Role.CITIZEN);
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        assertThrows(ForbiddenOperationException.class, () -> service.addComment(complaintId, "Hi", other));
+    }
+
+    @Test
+    void blankCommentIsRejected() {
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        assertThrows(BusinessRuleException.class, () -> service.addComment(complaintId, "   ", citizen));
+    }
+
+    @Test
+    void commentsAreClosedOnFinishedComplaints() {
+        complaint.reject("Duplicate");
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        assertThrows(BusinessRuleException.class, () -> service.addComment(complaintId, "Hello", citizen));
+    }
+
+    @Test
+    void onlyAdministratorsCanReadTheAuditLog() {
+        assertThrows(ForbiddenOperationException.class, () -> service.findAuditLog(0, 10, authority));
+    }
+
+    @Test
+    void submittedComplaintKeepsItsMapPosition() {
+        Category category = new Category("Roads", null);
+        UUID categoryId = UUID.randomUUID();
+        when(categoryService.getActiveById(categoryId)).thenReturn(category);
+        ComplaintForm f = form(categoryId, "MG Road");
+        f.setLatitude(9.9312);
+        f.setLongitude(76.2673);
+
+        Complaint saved = service.submit(f, null, citizen);
+
+        assertTrue(saved.hasCoordinates());
+        assertEquals(9.9312, saved.getLatitude());
+    }
+
+    // ---------------------------------------------------------------- reopen, exports, guards
+
+    private void closeComplaint() {
+        complaint.changeStatus(ComplaintStatus.UNDER_REVIEW);
+        complaint.changeStatus(ComplaintStatus.ASSIGNED);
+        complaint.changeStatus(ComplaintStatus.IN_PROGRESS);
+        complaint.changeStatus(ComplaintStatus.RESOLVED);
+        complaint.changeStatus(ComplaintStatus.CLOSED);
+    }
+
+    private StatusHistory closedEntry(LocalDateTime when) {
+        StatusHistory entry = new StatusHistory(complaint, ComplaintStatus.RESOLVED, ComplaintStatus.CLOSED, authority, null);
+        ReflectionTestUtils.setField(entry, "createdAt", when);
+        return entry;
+    }
+
+    @Test
+    void citizenCanReopenARecentlyClosedComplaint() {
+        closeComplaint();
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(historyRepository.findByComplaintOrderByCreatedAtAsc(complaint))
+                .thenReturn(List.of(closedEntry(LocalDateTime.now().minusDays(2))));
+        when(userService.findActiveByRole(Role.AUTHORITY)).thenReturn(List.of(authority));
+
+        service.reopen(complaintId, "The pothole is back", citizen);
+
+        assertEquals(ComplaintStatus.UNDER_REVIEW, complaint.getStatus());
+        verify(notificationService).notifyUser(eq(authority), anyString(), anyString(), any());
+    }
+
+    @Test
+    void reopenIsRefusedAfterTheWindow() {
+        closeComplaint();
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(historyRepository.findByComplaintOrderByCreatedAtAsc(complaint))
+                .thenReturn(List.of(closedEntry(LocalDateTime.now().minusDays(20))));
+
+        assertThrows(BusinessRuleException.class, () -> service.reopen(complaintId, "Still broken", citizen));
+        assertEquals(ComplaintStatus.CLOSED, complaint.getStatus());
+    }
+
+    @Test
+    void onlyClosedComplaintsCanBeReopened() {
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        assertThrows(BusinessRuleException.class, () -> service.reopen(complaintId, "Hello", citizen));
+    }
+
+    @Test
+    void otherCitizensCannotReopen() {
+        User other = userWithId("Other", "other@example.com", Role.CITIZEN);
+        closeComplaint();
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        assertThrows(ForbiddenOperationException.class, () -> service.reopen(complaintId, "Hello", other));
+    }
+
+    @Test
+    void reopenNeedsAReason() {
+        closeComplaint();
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(historyRepository.findByComplaintOrderByCreatedAtAsc(complaint))
+                .thenReturn(List.of(closedEntry(LocalDateTime.now().minusDays(1))));
+
+        assertThrows(BusinessRuleException.class, () -> service.reopen(complaintId, "  ", citizen));
+    }
+
+    @Test
+    void canReopenOnlyForTheOwnerWithinTheWindow() {
+        closeComplaint();
+        when(historyRepository.findByComplaintOrderByCreatedAtAsc(complaint))
+                .thenReturn(List.of(closedEntry(LocalDateTime.now().minusDays(1))));
+
+        assertTrue(service.canReopen(complaint, citizen));
+        assertFalse(service.canReopen(complaint, authority));
+    }
+
+    @Test
+    void startReviewOnlyWorksOnNewComplaints() {
+        complaint.changeStatus(ComplaintStatus.UNDER_REVIEW);
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        assertThrows(BusinessRuleException.class, () -> service.startReview(complaintId, authority));
+    }
+
+    @Test
+    void onlyAdministratorsCanExportTheAuditLog() {
+        assertThrows(ForbiddenOperationException.class, () -> service.exportAuditCsv(authority));
     }
 }

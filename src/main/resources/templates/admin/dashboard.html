@@ -3,44 +3,90 @@
 <head th:replace="~{fragments/layout :: head('Admin overview')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-4">
-    <h1 class="h3 mb-3">System overview</h1>
+<main id="main-content" class="container py-4">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+        <div>
+            <h1 class="h3 mb-0 page-title">System overview</h1>
+            <p class="text-muted mb-0">What is happening in CivicTrack right now.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a class="btn btn-outline-primary btn-sm" th:href="@{/admin/users}">Manage users</a>
+            <a class="btn btn-outline-secondary btn-sm" th:href="@{/admin/audit}">Audit log</a>
+        </div>
+    </div>
     <div th:replace="~{fragments/layout :: flash}"></div>
 
-    <h2 class="h6 text-muted">Users</h2>
+    <!-- headline numbers -->
     <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3" th:each="entry : ${usersByRole}">
-            <div class="card stat-card shadow-sm text-center"><div class="card-body py-3">
-                <div class="display-6" th:text="${entry.value}">0</div>
-                <div class="small text-muted" th:text="${entry.key}">Role</div>
+        <div class="col-6 col-lg-3">
+            <div class="card shadow-sm h-100"><div class="card-body d-flex align-items-center gap-3">
+                <div class="kpi-icon bg-primary-subtle text-primary"><i class="bi bi-inbox"></i></div>
+                <div><div class="kpi-number" th:text="${totalComplaints}">0</div>
+                    <div class="text-muted small">Total complaints</div></div>
+            </div></div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card shadow-sm h-100"><div class="card-body d-flex align-items-center gap-3">
+                <div class="kpi-icon bg-warning-subtle text-warning-emphasis"><i class="bi bi-hourglass-split"></i></div>
+                <div><div class="kpi-number" th:text="${openComplaints}">0</div>
+                    <div class="text-muted small">Open</div></div>
+            </div></div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card shadow-sm h-100"><div class="card-body d-flex align-items-center gap-3">
+                <div class="kpi-icon bg-info-subtle text-info-emphasis"><i class="bi bi-patch-question"></i></div>
+                <div><div class="kpi-number" th:text="${awaitingVerification}">0</div>
+                    <div class="text-muted small">Awaiting verification</div></div>
+            </div></div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card shadow-sm h-100"><div class="card-body d-flex align-items-center gap-3">
+                <div class="kpi-icon bg-success-subtle text-success"><i class="bi bi-check2-circle"></i></div>
+                <div><div class="kpi-number" th:text="${closedComplaints}">0</div>
+                    <div class="text-muted small">Closed</div></div>
             </div></div>
         </div>
     </div>
 
-    <h2 class="h6 text-muted">Complaints by status</h2>
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3 col-lg" th:each="entry : ${counts}">
-            <div class="card stat-card shadow-sm text-center"><div class="card-body py-3">
-                <div class="display-6" th:text="${entry.value}">0</div>
-                <span class="badge" th:classappend="'text-bg-' + ${entry.key.badgeClass}" th:text="${entry.key.label}">Status</span>
-            </div></div>
-        </div>
-    </div>
-
-    <h2 class="h6 text-muted">Recent complaints</h2>
-    <div class="card card-body text-center" th:if="${#lists.isEmpty(recent)}">No complaints yet.</div>
+    <!-- recent complaints first: this is the working area -->
+    <h2 class="h5 mb-2">Recent complaints</h2>
+    <div class="card card-body text-center text-muted" th:if="${#lists.isEmpty(recent)}">No complaints yet.</div>
     <div class="table-responsive card shadow-sm" th:unless="${#lists.isEmpty(recent)}">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-stack table-hover align-middle mb-0">
             <thead class="table-light"><tr><th>Title</th><th>Status</th><th>Submitted</th><th></th></tr></thead>
             <tbody>
             <tr th:each="c : ${recent}">
-                <td th:text="${c.title}">Title</td>
-                <td><span class="badge" th:classappend="'text-bg-' + ${c.status.badgeClass}" th:text="${c.status.label}">Status</span></td>
-                <td th:text="${c.createdAtDisplay}">Date</td>
-                <td><a class="btn btn-sm btn-outline-primary" th:href="@{/complaints/{id}(id=${c.id})}">View</a></td>
+                <td data-label="Title" th:text="${c.title}">Title</td>
+                <td data-label="Status"><span class="badge" th:classappend="'text-bg-' + ${c.status.badgeClass}" th:text="${c.status.label}">Status</span> <span class="badge text-bg-danger" th:if="${c.overdue}">Overdue</span></td>
+                <td data-label="Submitted" th:text="${c.createdAtDisplay}">Date</td>
+                <td data-label=""><a class="btn btn-sm btn-outline-primary" th:href="@{/complaints/{id}(id=${c.id})}">View</a></td>
             </tr>
             </tbody>
         </table>
+    </div>
+
+    <!-- statistics and graphs below -->
+    <h2 class="h5 mt-5 mb-3">Statistics</h2>
+    <div th:replace="~{fragments/charts :: charts}"></div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h3 class="h6 mb-2">Status breakdown</h3>
+            <div class="mb-3">
+                <span class="chip-static" th:each="entry : ${counts}" th:if="${entry.value > 0}">
+                    <span class="badge" th:classappend="'text-bg-' + ${entry.key.badgeClass}" th:text="${entry.key.label}">Status</span>
+                    <strong th:text="${entry.value}">0</strong>
+                </span>
+            </div>
+            <div class="text-muted small mb-3" th:if="${totalComplaints == 0}">No complaints yet.</div>
+            <h3 class="h6 mb-2">Users (<span th:text="${totalUsers}">0</span>)</h3>
+            <div>
+                <span class="chip-static" th:each="entry : ${usersByRole}">
+                    <span th:text="${entry.key}">Role</span> <strong th:text="${entry.value}">0</strong>
+                </span>
+            </div>
+        </div>
     </div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>

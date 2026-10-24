@@ -40,6 +40,14 @@ public class Category extends BaseEntity {
         return active;
     }
 
+    public void update(String newName, String newDescription) {
+        if (newName == null || newName.isBlank()) {
+            throw new IllegalArgumentException("Category name is required");
+        }
+        this.name = newName.trim();
+        this.description = newDescription == null || newDescription.isBlank() ? null : newDescription.trim();
+    }
+
     public void toggleActive() {
         this.active = !this.active;
     }

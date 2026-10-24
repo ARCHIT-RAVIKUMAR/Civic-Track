@@ -3,7 +3,7 @@
 <head th:replace="~{fragments/layout :: head('Manage categories')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-4">
+<main id="main-content" class="container py-4">
     <h1 class="h3 mb-3">Complaint categories</h1>
     <div th:replace="~{fragments/layout :: flash}"></div>
 
@@ -27,20 +27,34 @@
             </form>
         </div>
         <div class="col-lg-8">
-            <div class="table-responsive card shadow-sm">
-                <table class="table align-middle mb-0">
+            <div class="card shadow-sm">
+                <table class="table table-stack align-middle mb-0">
                     <thead class="table-light"><tr><th>Name</th><th>Description</th><th>Status</th><th></th></tr></thead>
                     <tbody>
                     <tr th:each="c : ${categories}">
-                        <td th:text="${c.name}">Name</td>
-                        <td th:text="${c.description}">Description</td>
-                        <td><span class="badge" th:classappend="${c.active} ? 'text-bg-success' : 'text-bg-secondary'"
+                        <td data-label="Name" class="fw-semibold" th:text="${c.name}">Name</td>
+                        <td data-label="Description" class="text-muted" th:text="${c.description}">Description</td>
+                        <td data-label="Status"><span class="badge" th:classappend="${c.active} ? 'text-bg-success' : 'text-bg-secondary'"
                                   th:text="${c.active} ? 'Active' : 'Hidden'">Active</span></td>
-                        <td>
-                            <form th:action="@{/admin/categories/{id}/toggle(id=${c.id})}" method="post">
-                                <button type="submit" class="btn btn-sm btn-outline-secondary"
-                                        th:text="${c.active} ? 'Hide' : 'Show'">Hide</button>
-                            </form>
+                        <td data-label="" class="text-end">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"
+                                        aria-expanded="false" th:attr="aria-label=${'Actions for ' + c.name}">
+                                    <i class="bi bi-three-dots-vertical"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" th:href="@{/admin/categories/{id}/edit(id=${c.id})}">
+                                        <i class="bi bi-pencil me-2"></i>Edit</a></li>
+                                    <li>
+                                        <form th:action="@{/admin/categories/{id}/toggle(id=${c.id})}" method="post" class="m-0">
+                                            <button type="submit" class="dropdown-item">
+                                                <i class="bi bi-eye-slash me-2"></i>
+                                                <span th:text="${c.active} ? 'Hide from citizens' : 'Show to citizens'">Hide</span>
+                                            </button>
+                                        </form>
+                                    </li>
+                                </ul>
+                            </div>
                         </td>
                     </tr>
                     </tbody>

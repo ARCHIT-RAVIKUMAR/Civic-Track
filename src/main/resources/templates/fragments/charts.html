@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- Needs model attributes: statusLabels, statusValues, categoryLabels, categoryValues -->
+<section th:fragment="charts">
+    <div class="card card-body text-center text-muted mb-4" th:unless="${chartHasData}">
+        <i class="bi bi-bar-chart fs-3"></i>
+        <div>No complaints yet. The charts will appear here once citizens start reporting.</div>
+    </div>
+    <th:block th:if="${chartHasData}">
+    <div class="row g-3 mb-4">
+        <div class="col-md-5">
+            <div class="card shadow-sm"><div class="card-body">
+                <h2 class="h6">Complaints by status</h2>
+                <canvas id="statusChart" height="230" aria-label="Complaints by status" role="img"></canvas>
+            </div></div>
+        </div>
+        <div class="col-md-7">
+            <div class="card shadow-sm"><div class="card-body">
+                <h2 class="h6">Complaints by category</h2>
+                <canvas id="categoryChart" height="230" aria-label="Complaints by category" role="img"></canvas>
+            </div></div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script th:inline="javascript">
+        (function () {
+            var statusLabels = /*[[${statusLabels}]]*/ [];
+            var statusValues = /*[[${statusValues}]]*/ [];
+            var categoryLabels = /*[[${categoryLabels}]]*/ [];
+            var categoryValues = /*[[${categoryValues}]]*/ [];
+            if (typeof Chart === 'undefined') { return; }
+            new Chart(document.getElementById('statusChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: statusLabels,
+                    datasets: [{
+                        data: statusValues,
+                        backgroundColor: ['#6c757d', '#0dcaf0', '#0d6efd', '#ffc107', '#198754', '#212529', '#dc3545']
+                    }]
+                },
+                options: { plugins: { legend: { position: 'bottom' } } }
+            });
+            new Chart(document.getElementById('categoryChart'), {
+                type: 'bar',
+                data: {
+                    labels: categoryLabels,
+                    datasets: [{ label: 'Complaints', data: categoryValues, backgroundColor: '#0d6efd' }]
+                },
+                options: {
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+                }
+            });
+        })();
+    </script>
+    </th:block>
+</section>
+</body>
+</html>

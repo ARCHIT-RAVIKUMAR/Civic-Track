@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('My map')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main id="main-content" class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">My assignments on the map</h1>
+        <a class="btn btn-outline-secondary btn-sm" th:href="@{/worker/dashboard}">List view</a>
+    </div>
+
+    <div class="alert alert-info" th:if="${#lists.isEmpty(pins)}">
+        <span th:if="${openCount == 0}">You have no open assignments.</span>
+        <span th:if="${openCount > 0}">None of your open assignments has a map pin yet. Open the list view for their locations.</span>
+    </div>
+
+    <div class="card shadow-sm" th:unless="${#lists.isEmpty(pins)}">
+        <div class="card-body">
+            <div id="workerMap" style="height: 60vh; min-height: 320px; border-radius: .5rem;"></div>
+            <p class="small text-muted mt-2 mb-0">
+                <span th:text="${#lists.size(pins)}">0</span> of <span th:text="${openCount}">0</span> open assignment(s) have a pin.
+                Click a pin to open the complaint.
+            </p>
+        </div>
+    </div>
+</main>
+
+<th:block th:unless="${#lists.isEmpty(pins)}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script th:inline="javascript">
+        (function () {
+            var pins = /*[[${pins}]]*/ [];
+            var base = /*[[@{/complaints/}]]*/ '/complaints/';
+            if (typeof L === 'undefined' || !pins.length) { return; }
+            var map = L.map('workerMap');
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+            var points = [];
+            pins.forEach(function (pin) {
+                var link = document.createElement('a');
+                link.href = base + pin.id;
+                link.textContent = pin.title + ' (' + pin.status + ')';
+                L.marker([pin.lat, pin.lng]).addTo(map).bindPopup(link);
+                points.push([pin.lat, pin.lng]);
+            });
+            map.fitBounds(L.latLngBounds(points), { padding: [30, 30], maxZoom: 16 });
+        })();
+    </script>
+</th:block>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head th:replace="~{fragments/layout :: head('Error')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-5 text-center">
+<main id="main-content" class="container py-5 text-center">
     <h1 class="display-4 fw-bold" th:text="${status != null ? status : 'Error'}">Error</h1>
     <p class="lead text-muted" th:text="${message != null ? message : 'Something went wrong.'}">Something went wrong.</p>
     <a class="btn btn-primary" th:href="@{/}">Back to home</a>

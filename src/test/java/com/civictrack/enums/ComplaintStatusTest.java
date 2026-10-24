@@ -42,6 +42,15 @@ class ComplaintStatusTest {
     }
 
     @Test
+    void closedComplaintCanOnlyGoBackToReview() {
+        assertTrue(CLOSED.canTransitionTo(UNDER_REVIEW));
+        assertFalse(CLOSED.canTransitionTo(IN_PROGRESS));
+        assertFalse(CLOSED.canTransitionTo(RESOLVED));
+        assertTrue(REJECTED.allowedNext().isEmpty());
+        assertTrue(WITHDRAWN.allowedNext().isEmpty());
+    }
+
+    @Test
     void authorityCanSendResolvedWorkBack() {
         assertTrue(RESOLVED.canTransitionTo(IN_PROGRESS));
     }
@@ -50,7 +59,6 @@ class ComplaintStatusTest {
     void closedAndRejectedAreTerminal() {
         assertTrue(CLOSED.isTerminal());
         assertTrue(REJECTED.isTerminal());
-        assertTrue(CLOSED.allowedNext().isEmpty());
         assertTrue(REJECTED.allowedNext().isEmpty());
         assertFalse(SUBMITTED.isTerminal());
     }

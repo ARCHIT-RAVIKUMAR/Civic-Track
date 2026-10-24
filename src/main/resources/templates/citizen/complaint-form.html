@@ -3,7 +3,7 @@
 <head th:replace="~{fragments/layout :: head('Report an issue')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-4" style="max-width: 720px;">
+<main id="main-content" class="container py-4" style="max-width: 720px;">
     <h1 class="h3 mb-3">Report a civic issue</h1>
     <div th:replace="~{fragments/layout :: flash}"></div>
 
@@ -50,6 +50,19 @@
             <div class="invalid-feedback" th:errors="*{location}"></div>
         </div>
         <div class="mb-3">
+            <label class="form-label">Pin the exact spot on the map (optional)</label>
+            <div class="d-flex gap-2 mb-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" id="useLocation">
+                    <i class="bi bi-geo-alt"></i> Use my current location</button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="clearPin">Clear pin</button>
+            </div>
+            <div id="pickMap" style="height: 280px; border-radius: .5rem;"></div>
+            <div class="form-text">Click the map to drop a pin. It helps the field worker find the place.</div>
+            <input type="hidden" th:field="*{latitude}">
+            <input type="hidden" th:field="*{longitude}">
+            <div class="text-danger small" th:if="${#fields.hasErrors('coordinatesValid')}" th:errors="*{coordinatesValid}"></div>
+        </div>
+        <div class="mb-3">
             <label for="image" class="form-label">Photo (optional, JPEG or PNG, max 2 MB)</label>
             <input type="file" class="form-control" id="image" name="image" accept="image/jpeg,image/png">
         </div>
@@ -62,6 +75,43 @@
         </div>
     </form>
 </main>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    (function () {
+        if (typeof L === 'undefined') { return; }
+        var latInput = document.getElementById('latitude');
+        var lngInput = document.getElementById('longitude');
+        var map = L.map('pickMap').setView([20.5937, 78.9629], 5);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+        var marker = null;
+
+        function setPin(lat, lng, zoom) {
+            if (marker) { marker.setLatLng([lat, lng]); } else { marker = L.marker([lat, lng]).addTo(map); }
+            latInput.value = lat.toFixed(6);
+            lngInput.value = lng.toFixed(6);
+            if (zoom) { map.setView([lat, lng], zoom); }
+        }
+        function clearPin() {
+            if (marker) { map.removeLayer(marker); marker = null; }
+            latInput.value = '';
+            lngInput.value = '';
+        }
+
+        if (latInput.value && lngInput.value) {
+            setPin(parseFloat(latInput.value), parseFloat(lngInput.value), 16);
+        }
+        map.on('click', function (e) { setPin(e.latlng.lat, e.latlng.lng, null); });
+        document.getElementById('clearPin').addEventListener('click', clearPin);
+        document.getElementById('useLocation').addEventListener('click', function () {
+            if (!navigator.geolocation) { alert('Your browser does not support location.'); return; }
+            navigator.geolocation.getCurrentPosition(
+                function (pos) { setPin(pos.coords.latitude, pos.coords.longitude, 17); },
+                function () { alert('Could not get your location. You can click on the map instead.'); });
+        });
+    })();
+</script>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 </body>
 </html>

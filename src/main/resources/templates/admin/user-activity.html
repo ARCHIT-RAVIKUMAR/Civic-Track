@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Account activity')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main id="main-content" class="container py-4" style="max-width: 900px;">
+    <a class="btn btn-outline-secondary btn-sm" data-back th:href="@{/admin/users}"><i class="bi bi-arrow-left"></i> Back</a>
+
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mt-2 mb-3">
+        <div>
+            <h1 class="h3 mb-0" th:text="${subject.fullName}">Name</h1>
+            <div class="text-muted" th:text="${subject.email}">email</div>
+        </div>
+        <div>
+            <span class="badge text-bg-primary" th:text="${subject.role.label}">Role</span>
+            <span class="badge" th:classappend="${subject.enabled} ? 'text-bg-success' : 'text-bg-secondary'"
+                  th:text="${subject.enabled} ? 'Active' : 'Disabled'">Active</span>
+        </div>
+    </div>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="row g-3 mb-4">
+        <div class="col-sm-6">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small">Account created</div>
+                <div class="fw-semibold" th:text="${subject.createdAtDisplay}">Date</div>
+            </div></div>
+        </div>
+        <div class="col-sm-6">
+            <div class="card shadow-sm h-100"><div class="card-body">
+                <div class="text-muted small">Last login</div>
+                <div class="fw-semibold" th:text="${lastLogin != null} ? ${lastLogin.createdAtDisplay} : 'No login recorded yet'">Date</div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="mb-3" th:unless="${#maps.isEmpty(byKind)}">
+        <span class="chip-static" th:each="entry : ${byKind}">
+            <span th:text="${entry.key}">Kind</span> <strong th:text="${entry.value}">0</strong>
+        </span>
+    </div>
+
+    <div class="card card-body text-center py-5" th:if="${#lists.isEmpty(items)}">
+        <p class="mb-0 fs-5">No activity recorded for this account yet.</p>
+    </div>
+
+    <div class="card shadow-sm" th:unless="${#lists.isEmpty(items)}">
+        <ul class="list-group list-group-flush">
+            <li class="list-group-item d-flex gap-3" th:each="item : ${items}">
+                <div class="text-primary fs-5"><i class="bi" th:classappend="${item.icon}"></i></div>
+                <div class="flex-grow-1">
+                    <div>
+                        <span th:text="${item.description}">What happened</span>
+                        <a class="small ms-1" th:if="${item.complaintId != null}"
+                           th:href="@{/complaints/{id}(id=${item.complaintId})}">open complaint</a>
+                    </div>
+                    <div class="small text-muted">
+                        <span class="badge text-bg-light" th:text="${item.kind}">Kind</span>
+                        <span th:text="${item.timeDisplay}">Date</span>
+                    </div>
+                </div>
+            </li>
+        </ul>
+    </div>
+    <p class="small text-muted mt-3">
+        Shows up to the latest 200 events. Logins, failed logins and account changes are recorded;
+        passwords and IP addresses are never stored. Visible to administrators only.
+    </p>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

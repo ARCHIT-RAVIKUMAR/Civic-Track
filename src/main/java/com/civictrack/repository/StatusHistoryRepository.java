@@ -12,4 +12,6 @@ public interface StatusHistoryRepository extends JpaRepository<StatusHistory, UU
     List<StatusHistory> findByComplaintOrderByCreatedAtAsc(Complaint complaint);
 
     boolean existsByChangedBy(User changedBy);
+
+    List<StatusHistory> findTop200ByChangedByOrderByCreatedAtDesc(User changedBy);
 }

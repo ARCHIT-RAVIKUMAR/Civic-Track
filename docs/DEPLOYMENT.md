@@ -66,3 +66,17 @@ run the container with `--env-file`, put nginx (or Caddy) in front for HTTPS, an
 | `prepared statement already exists` | using the Transaction pooler (6543); switch to Session pooler / direct |
 | 502 or timeout on Render right after deploy | free instance still starting or waking; wait and retry |
 | Uploaded images disappear | ephemeral disk on free hosting (expected) |
+
+## Optional: permanent photo storage (Supabase Storage)
+By default photos are saved on the server's disk, which Render Free wipes on every restart. To keep them:
+1. Supabase dashboard -> **Storage** -> **New bucket** -> name `complaint-images`, keep it **private** (Public OFF).
+2. Supabase dashboard -> **Project Settings -> API Keys**: copy the **server-side secret key** (or the legacy `service_role` key).
+   It is powerful: put it ONLY in Render's environment variables, never in Git, screenshots or chat.
+3. In Render add: `STORAGE_MODE=supabase`, `SUPABASE_URL=https://<project-ref>.supabase.co`, `SUPABASE_KEY=<the key>`, `SUPABASE_BUCKET=complaint-images`.
+4. Redeploy, submit a complaint with a photo, restart the service, and confirm the photo is still there.
+Photos are never public: the app downloads them with the server key and shows them only to users allowed to see the complaint.
+Check your Supabase plan's storage limit. Remove the variables (or set `STORAGE_MODE=local`) to go back to disk storage.
+
+## Maps
+The map uses Leaflet with OpenStreetMap tiles (no API key). OpenStreetMap's tile servers are meant for light use; fine for a demo.
+"Use my current location" needs HTTPS (Render provides it) or localhost.

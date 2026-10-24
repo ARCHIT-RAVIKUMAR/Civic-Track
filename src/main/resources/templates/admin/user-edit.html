@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Edit user')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main id="main-content" class="container py-4" style="max-width: 520px;">
+    <a class="btn btn-outline-secondary btn-sm" data-back th:href="@{/admin/users}"><i class="bi bi-arrow-left"></i> Back</a>
+    <h1 class="h3 mt-3 mb-3">Edit user</h1>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="alert alert-info small" th:if="${self}">
+        This is your own account, so your email and role are locked here. Use <a th:href="@{/profile}">My profile</a>
+        for your password.
+    </div>
+
+    <form th:action="@{/admin/users/{id}/edit(id=${subject.id})}" method="post" class="card card-body shadow-sm">
+        <div class="mb-3">
+            <label for="fullName" class="form-label">Full name</label>
+            <input type="text" class="form-control" id="fullName" name="fullName" th:value="${subject.fullName}"
+                   maxlength="100" required>
+        </div>
+        <div class="mb-3">
+            <label for="email" class="form-label">Email (login ID)</label>
+            <input type="email" autocapitalize="none" spellcheck="false" class="form-control" id="email" name="email"
+                   th:value="${subject.email}" maxlength="150" required th:readonly="${self}">
+            <div class="form-text" th:unless="${self}">
+                The person must log in with the new email from now on, so tell them about the change.
+            </div>
+        </div>
+        <div class="mb-3">
+            <label for="role" class="form-label">Role</label>
+            <select class="form-select" id="role" name="role" th:disabled="${self}">
+                <option th:each="r : ${roles}" th:value="${r.name()}" th:text="${r.label}"
+                        th:selected="${r == subject.role}">Role</option>
+            </select>
+            <div class="form-text" th:unless="${self}">A role change applies the next time the person logs in.</div>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">Save changes</button>
+            <a class="btn btn-outline-secondary" th:href="@{/admin/users}">Cancel</a>
+        </div>
+    </form>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

@@ -23,6 +23,7 @@ class ComplaintRepositoryTest {
     @Autowired private UserRepository userRepository;
     @Autowired private CategoryRepository categoryRepository;
     @Autowired private ComplaintRepository complaintRepository;
+    @Autowired private jakarta.persistence.EntityManager em;
 
     private User citizen;
     private Category roads;
@@ -102,5 +103,34 @@ class ComplaintRepositoryTest {
         ComplaintFilter filter = new ComplaintFilter();
         filter.setQ("%");
         assertEquals(0, complaintRepository.findAll(ComplaintSpecs.withFilter(filter), PageRequest.of(0, 10)).getTotalElements());
+    }
+
+    @Test
+    void countsComplaintsPerCategory() {
+        complaintRepository.save(new Complaint("Pothole two", "Another large pothole nearby", "Main Rd", roads, citizen));
+        var rows = complaintRepository.countByCategory();
+        assertEquals(2, rows.size());
+        assertEquals("Roads", rows.get(0)[0]);
+        assertEquals(2L, rows.get(0)[1]);
+    }
+
+    @Test
+    void overdueFilterFindsOnlyOldOpenComplaints() {
+        Complaint old = complaintRepository.findByCitizenOrderByCreatedAtDesc(citizen).stream()
+                .filter(c -> c.getTitle().equals("Pothole one")).findFirst().orElseThrow();
+        em.flush();
+        em.createNativeQuery("update complaints set created_at = :t where id = :id")
+                .setParameter("t", java.time.LocalDateTime.now().minusDays(10))   // MEDIUM target = 7 days
+                .setParameter("id", old.getId())
+                .executeUpdate();
+        em.clear();
+
+        ComplaintFilter filter = new ComplaintFilter();
+        filter.setOverdue(true);
+        var page = complaintRepository.findAll(ComplaintSpecs.withFilter(filter), PageRequest.of(0, 10));
+
+        assertEquals(1, page.getTotalElements());
+        assertEquals("Pothole one", page.getContent().get(0).getTitle());
+        assertEquals(1L, complaintRepository.count(ComplaintSpecs.withFilter(filter)));
     }
 }

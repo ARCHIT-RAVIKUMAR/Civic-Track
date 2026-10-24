@@ -10,6 +10,7 @@ import java.util.UUID;
 public class ComplaintFilter {
 
     private String q;
+    private boolean overdue;
     private ComplaintStatus status;
     private UUID categoryId;
 
@@ -18,6 +19,14 @@ public class ComplaintFilter {
 
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
     private LocalDate to;
+
+    public boolean isOverdue() {
+        return overdue;
+    }
+
+    public void setOverdue(boolean overdue) {
+        this.overdue = overdue;
+    }
 
     public String getQ() {
         return q;

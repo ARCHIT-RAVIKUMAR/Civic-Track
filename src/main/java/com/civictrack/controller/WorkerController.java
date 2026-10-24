@@ -1,5 +1,6 @@
 package com.civictrack.controller;
 
+import com.civictrack.entity.Complaint;
 import com.civictrack.entity.User;
 import com.civictrack.exception.BusinessRuleException;
 import com.civictrack.service.ComplaintService;
@@ -14,6 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -34,6 +39,32 @@ public class WorkerController {
         User worker = userService.getByEmail(auth.getName());
         model.addAttribute("complaints", complaintService.findForWorker(worker));
         return "worker/dashboard";
+    }
+
+    /** All open assignments that have a map pin, shown together on one map. */
+    @GetMapping("/map")
+    public String map(Authentication auth, Model model) {
+        User worker = userService.getByEmail(auth.getName());
+        List<Map<String, Object>> pins = new ArrayList<>();
+        int open = 0;
+        for (Complaint c : complaintService.findForWorker(worker)) {
+            if (c.getStatus().isTerminal()) {
+                continue;
+            }
+            open++;
+            if (c.hasCoordinates()) {
+                Map<String, Object> pin = new LinkedHashMap<>();
+                pin.put("id", c.getId().toString());
+                pin.put("title", c.getTitle());
+                pin.put("status", c.getStatus().getLabel());
+                pin.put("lat", c.getLatitude());
+                pin.put("lng", c.getLongitude());
+                pins.add(pin);
+            }
+        }
+        model.addAttribute("pins", pins);
+        model.addAttribute("openCount", open);
+        return "worker/map";
     }
 
     @PostMapping("/complaints/{id}/start")

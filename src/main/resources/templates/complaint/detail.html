@@ -3,7 +3,8 @@
 <head th:replace="~{fragments/layout :: head('Complaint')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-4">
+<main id="main-content" class="container py-4">
+    <div class="mb-3"><a class="btn btn-outline-secondary btn-sm" data-back th:href="@{/dashboard}"><i class="bi bi-arrow-left"></i> Back</a></div>
     <div th:replace="~{fragments/layout :: flash}"></div>
 
     <div class="row g-4">
@@ -18,6 +19,8 @@
                                   th:text="${complaint.status.label}">Status</span>
                             <span class="badge fs-6" th:classappend="'text-bg-' + ${complaint.priority.badgeClass}"
                                   th:text="${complaint.priority.label} + ' priority'">Priority</span>
+                            <span class="badge fs-6 text-bg-danger" th:if="${complaint.overdue}"
+                                  th:title="'Target: ' + ${complaint.priority.slaDays} + ' day(s) for ' + ${complaint.priority.label} + ' priority'">Overdue</span>
                         </div>
                     </div>
                     <p class="text-muted small mt-2 mb-3">
@@ -38,6 +41,7 @@
                 </div>
             </div>
 
+
             <!-- Citizen: withdraw before assignment -->
             <div class="card shadow-sm mb-4"
                  th:if="${viewerRole == 'CITIZEN' and (complaint.status.name() == 'SUBMITTED' or complaint.status.name() == 'UNDER_REVIEW')}">
@@ -46,6 +50,19 @@
                     <form th:action="@{/citizen/complaints/{id}/withdraw(id=${complaint.id})}" method="post"
                           onsubmit="return confirm('Withdraw this complaint?');">
                         <button class="btn btn-outline-danger" type="submit">Withdraw this complaint</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Citizen: reopen a closed complaint that is not really fixed -->
+            <div class="card shadow-sm mb-4" th:if="${canReopen}">
+                <div class="card-body">
+                    <h2 class="h6">Not actually fixed?</h2>
+                    <p class="text-muted small">You can reopen a closed complaint for 7 days after it was closed.</p>
+                    <form th:action="@{/citizen/complaints/{id}/reopen(id=${complaint.id})}" method="post">
+                        <label for="reopenReason" class="form-label small mb-0">What is still wrong?</label>
+                        <textarea class="form-control mb-2" id="reopenReason" name="reason" rows="2" maxlength="500" required></textarea>
+                        <button type="submit" class="btn btn-warning">Reopen complaint</button>
                     </form>
                 </div>
             </div>
@@ -141,6 +158,22 @@
                         Marked as completed. Waiting for the authority to verify.</p>
                 </div>
             </div>
+
+            <!-- Map -->
+            <div class="card shadow-sm mb-4" th:if="${complaint.hasCoordinates()}">
+                <div class="card-body">
+                    <h2 class="h6">Location on map</h2>
+                    <div id="viewMap" style="height: 260px; border-radius: .5rem;"
+                         th:attr="data-lat=${complaint.latitude},data-lng=${complaint.longitude}"></div>
+                    <div class="small mt-2">
+                        <a target="_blank" rel="noopener"
+                           th:href="@{https://www.openstreetmap.org/(mlat=${complaint.latitude},mlon=${complaint.longitude})}">Open in OpenStreetMap</a>
+                        &middot;
+                        <a target="_blank" rel="noopener"
+                           th:href="@{https://www.google.com/maps/dir/(api=1,destination=${complaint.latitude + ',' + complaint.longitude})}">Get directions</a>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- RIGHT: timeline -->
@@ -165,11 +198,48 @@
                     </ul>
                 </div>
             </div>
+            <div class="card shadow-sm mt-4">
+                <div class="card-body">
+                    <h2 class="h6 mb-3">Comments</h2>
+                    <p class="text-muted small" th:if="${#lists.isEmpty(comments)}">No comments yet.</p>
+                    <div class="mb-3" th:each="cm : ${comments}">
+                        <div class="small">
+                            <strong th:text="${cm.author.fullName}">Name</strong>
+                            <span class="badge text-bg-light" th:text="${cm.author.role.label}">Role</span>
+                            <span class="text-muted" th:text="${cm.createdAtDisplay}">Date</span>
+                        </div>
+                        <div style="white-space: pre-line;" th:text="${cm.message}">Message</div>
+                    </div>
+                    <form th:if="${canComment}" th:action="@{/complaints/{id}/comments(id=${complaint.id})}" method="post">
+                        <label for="commentMessage" class="form-label small mb-0">Add a comment</label>
+                        <textarea class="form-control mb-2" id="commentMessage" name="message" rows="2"
+                                  maxlength="1000" required></textarea>
+                        <button type="submit" class="btn btn-sm btn-primary">Post comment</button>
+                    </form>
+                    <p class="text-muted small mb-0" th:unless="${canComment}">Comments are closed for this complaint.</p>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="mt-4"><a class="btn btn-outline-secondary" th:href="@{/dashboard}">&larr; Back to dashboard</a></div>
+    <div class="mt-4"><a class="btn btn-outline-secondary" data-back th:href="@{/dashboard}"><i class="bi bi-arrow-left"></i> Back</a></div>
 </main>
+<th:block th:if="${complaint.hasCoordinates()}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        (function () {
+            var el = document.getElementById('viewMap');
+            if (!el || typeof L === 'undefined') { return; }
+            var lat = parseFloat(el.getAttribute('data-lat'));
+            var lng = parseFloat(el.getAttribute('data-lng'));
+            var map = L.map(el).setView([lat, lng], 16);
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+            L.marker([lat, lng]).addTo(map);
+        })();
+    </script>
+</th:block>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 </body>
 </html>

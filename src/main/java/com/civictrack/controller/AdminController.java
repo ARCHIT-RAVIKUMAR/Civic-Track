@@ -2,13 +2,22 @@ package com.civictrack.controller;
 
 import com.civictrack.dto.AdminUserForm;
 import com.civictrack.dto.CategoryForm;
+import com.civictrack.dto.ResetPasswordForm;
+import com.civictrack.entity.StatusHistory;
 import com.civictrack.entity.User;
+import com.civictrack.enums.ComplaintStatus;
 import com.civictrack.enums.Role;
 import com.civictrack.exception.BusinessRuleException;
+import com.civictrack.service.ActivityItem;
+import com.civictrack.service.ActivityService;
 import com.civictrack.service.CategoryService;
 import com.civictrack.service.ComplaintService;
 import com.civictrack.service.UserService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -21,9 +30,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/admin")
@@ -32,12 +44,17 @@ public class AdminController {
     private final UserService userService;
     private final CategoryService categoryService;
     private final ComplaintService complaintService;
+    private final ChartDataHelper chartDataHelper;
+    private final ActivityService activityService;
 
     public AdminController(UserService userService, CategoryService categoryService,
-                           ComplaintService complaintService) {
+                           ComplaintService complaintService, ChartDataHelper chartDataHelper,
+                           ActivityService activityService) {
         this.userService = userService;
         this.categoryService = categoryService;
         this.complaintService = complaintService;
+        this.chartDataHelper = chartDataHelper;
+        this.activityService = activityService;
     }
 
     @GetMapping("/dashboard")
@@ -47,9 +64,47 @@ public class AdminController {
             usersByRole.put(role.getLabel(), userService.countByRole(role));
         }
         model.addAttribute("usersByRole", usersByRole);
-        model.addAttribute("counts", complaintService.countByStatus());
+        Map<ComplaintStatus, Long> counts = complaintService.countByStatus();
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        long open = counts.getOrDefault(ComplaintStatus.SUBMITTED, 0L)
+                + counts.getOrDefault(ComplaintStatus.UNDER_REVIEW, 0L)
+                + counts.getOrDefault(ComplaintStatus.ASSIGNED, 0L)
+                + counts.getOrDefault(ComplaintStatus.IN_PROGRESS, 0L);
+        model.addAttribute("counts", counts);
+        model.addAttribute("totalComplaints", total);
+        model.addAttribute("openComplaints", open);
+        model.addAttribute("awaitingVerification", counts.getOrDefault(ComplaintStatus.RESOLVED, 0L));
+        model.addAttribute("closedComplaints", counts.getOrDefault(ComplaintStatus.CLOSED, 0L));
+        model.addAttribute("totalUsers", usersByRole.values().stream().mapToLong(Long::longValue).sum());
         model.addAttribute("recent", complaintService.findRecent());
+        chartDataHelper.addTo(model);
         return "admin/dashboard";
+    }
+
+    // ---------------- audit log ----------------
+
+    @GetMapping("/audit/export")
+    public ResponseEntity<byte[]> exportAudit(Authentication auth) {
+        return csv(complaintService.exportAuditCsv(admin(auth)), "audit-log.csv");
+    }
+
+    @GetMapping("/users/export")
+    public ResponseEntity<byte[]> exportUsers(Authentication auth) {
+        return csv(userService.exportCsv(admin(auth)), "users.csv");
+    }
+
+    private ResponseEntity<byte[]> csv(String content, String filename) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    @GetMapping("/audit")
+    public String audit(@RequestParam(defaultValue = "0") int page, Authentication auth, Model model) {
+        Page<StatusHistory> entries = complaintService.findAuditLog(page, 25, admin(auth));
+        model.addAttribute("page", entries);
+        return "admin/audit";
     }
 
     // ---------------- users ----------------
@@ -76,6 +131,71 @@ public class AdminController {
             return "admin/users";
         }
         redirect.addFlashAttribute("success", "User created.");
+        return "redirect:/admin/users";
+    }
+
+    @GetMapping("/users/{id}/activity")
+    public String userActivity(@PathVariable UUID id, Authentication auth, Model model) {
+        User adminUser = admin(auth);
+        User subject = userService.getById(id);
+        List<ActivityItem> items = activityService.timeline(id, adminUser);
+        model.addAttribute("subject", subject);
+        model.addAttribute("items", items);
+        model.addAttribute("byKind", items.stream().collect(
+                Collectors.groupingBy(ActivityItem::getKind, LinkedHashMap::new, Collectors.counting())));
+        model.addAttribute("lastLogin", activityService.lastLogin(subject).orElse(null));
+        return "admin/user-activity";
+    }
+
+    @GetMapping("/users/{id}/reset-password")
+    public String resetPasswordForm(@PathVariable UUID id, Model model) {
+        model.addAttribute("subject", userService.getById(id));
+        model.addAttribute("resetForm", new ResetPasswordForm());
+        return "admin/reset-password";
+    }
+
+    @PostMapping("/users/{id}/reset-password")
+    public String resetPassword(@PathVariable UUID id,
+                                @Valid @ModelAttribute("resetForm") ResetPasswordForm form,
+                                BindingResult result, Authentication auth,
+                                Model model, RedirectAttributes redirect) {
+        User subject = userService.getById(id);
+        model.addAttribute("subject", subject);
+        if (result.hasErrors()) {
+            return "admin/reset-password";
+        }
+        try {
+            userService.resetPassword(id, form.getNewPassword(), admin(auth));
+        } catch (BusinessRuleException ex) {
+            model.addAttribute("error", ex.getMessage());
+            return "admin/reset-password";
+        }
+        redirect.addFlashAttribute("success", "Password reset for " + subject.getFullName()
+                + ". Ask them to change it from My profile after logging in.");
+        return "redirect:/admin/users";
+    }
+
+    @GetMapping("/users/{id}/edit")
+    public String editUserForm(@PathVariable UUID id, Authentication auth, Model model) {
+        User subject = userService.getById(id);
+        model.addAttribute("subject", subject);
+        model.addAttribute("self", subject.getId().equals(admin(auth).getId()));
+        model.addAttribute("roles", Role.values());
+        return "admin/user-edit";
+    }
+
+    @PostMapping("/users/{id}/edit")
+    public String editUser(@PathVariable UUID id, @RequestParam String fullName,
+                           @RequestParam(required = false) String email,
+                           @RequestParam(required = false) Role role,
+                           Authentication auth, RedirectAttributes redirect) {
+        try {
+            userService.updateDetails(id, fullName, email, role, admin(auth));
+            redirect.addFlashAttribute("success", "User updated.");
+        } catch (BusinessRuleException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+            return "redirect:/admin/users/" + id + "/edit"; // stay on the form so it can be fixed
+        }
         return "redirect:/admin/users";
     }
 
@@ -149,6 +269,25 @@ public class AdminController {
             return "admin/categories";
         }
         redirect.addFlashAttribute("success", "Category added.");
+        return "redirect:/admin/categories";
+    }
+
+    @GetMapping("/categories/{id}/edit")
+    public String editCategoryForm(@PathVariable UUID id, Model model) {
+        model.addAttribute("category", categoryService.getById(id));
+        return "admin/category-edit";
+    }
+
+    @PostMapping("/categories/{id}/edit")
+    public String editCategory(@PathVariable UUID id, @RequestParam String name,
+                               @RequestParam(required = false) String description,
+                               RedirectAttributes redirect) {
+        try {
+            categoryService.update(id, name, description);
+            redirect.addFlashAttribute("success", "Category updated.");
+        } catch (BusinessRuleException ex) {
+            redirect.addFlashAttribute("error", ex.getMessage());
+        }
         return "redirect:/admin/categories";
     }
 

@@ -3,20 +3,28 @@
 <head th:replace="~{fragments/layout :: head('Authority dashboard')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-4">
+<main id="main-content" class="container py-4">
     <h1 class="h3 mb-3">Complaints</h1>
     <div th:replace="~{fragments/layout :: flash}"></div>
 
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-3 col-lg" th:each="s : ${statuses}">
-            <div class="card stat-card shadow-sm text-center"><div class="card-body py-3">
-                <div class="display-6" th:text="${counts.get(s)}">0</div>
-                <span class="badge" th:classappend="'text-bg-' + ${s.badgeClass}" th:text="${s.label}">Status</span>
-            </div></div>
-        </div>
+    <div class="d-flex flex-wrap gap-2 mb-4" aria-label="Filter by status">
+        <a class="stat-chip" th:classappend="${filter.status == null and !filter.overdue} ? 'active'" th:href="@{/authority/dashboard}">All</a>
+        <a class="stat-chip" th:classappend="${filter.overdue} ? 'active'" th:href="@{/authority/dashboard(overdue=true)}">
+            <i class="bi bi-alarm"></i> Overdue <strong th:text="${overdueCount}">0</strong>
+        </a>
+        <a class="stat-chip" th:each="s : ${statuses}" th:if="${counts.get(s) > 0 or filter.status == s}"
+           th:classappend="${filter.status == s} ? 'active'"
+           th:href="@{/authority/dashboard(status=${s.name()})}">
+            <span th:text="${s.label}">Status</span> <strong th:text="${counts.get(s)}">0</strong>
+        </a>
     </div>
 
-    <form th:action="@{/authority/dashboard}" method="get" class="card card-body shadow-sm mb-4">
+
+    <button class="btn btn-outline-secondary d-md-none mb-2 w-100" type="button" data-bs-toggle="collapse"
+            data-bs-target="#filterPanel" aria-expanded="false" aria-controls="filterPanel">
+        <i class="bi bi-funnel"></i> Search &amp; filters
+    </button>
+    <form id="filterPanel" th:action="@{/authority/dashboard}" method="get" class="collapse d-md-block card card-body shadow-sm mb-4">
         <div class="row g-3 align-items-end">
             <div class="col-md-12">
                 <label for="q" class="form-label">Search</label>
@@ -47,6 +55,12 @@
                 <label for="to" class="form-label">To</label>
                 <input type="date" class="form-control" id="to" name="to" th:value="${filter.to}">
             </div>
+            <div class="col-md-12">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="overdue" name="overdue" value="true" th:checked="${filter.overdue}">
+                    <label class="form-check-label" for="overdue">Overdue only (open longer than the target for its priority)</label>
+                </div>
+            </div>
             <div class="col-md-2 d-flex gap-2">
                 <button type="submit" class="btn btn-primary">Filter</button>
                 <a class="btn btn-outline-secondary" th:href="@{/authority/dashboard}">Reset</a>
@@ -57,7 +71,7 @@
     <div class="d-flex justify-content-between align-items-center mb-2">
         <span class="text-muted" th:text="${page.totalElements} + ' complaint(s) found'">0 found</span>
         <a class="btn btn-sm btn-outline-primary"
-           th:href="@{/authority/export(q=${filter.q},status=${filter.status},categoryId=${filter.categoryId},from=${filter.from},to=${filter.to})}">
+           th:href="@{/authority/export(q=${filter.q},overdue=${filter.overdue},status=${filter.status},categoryId=${filter.categoryId},from=${filter.from},to=${filter.to})}">
             Export CSV</a>
     </div>
 
@@ -66,18 +80,18 @@
     </div>
 
     <div class="table-responsive card shadow-sm" th:unless="${page.empty}">
-        <table class="table table-hover align-middle mb-0">
+        <table class="table table-stack table-hover align-middle mb-0">
             <thead class="table-light">
             <tr><th>Title</th><th>Category</th><th>Priority</th><th>Status</th><th>Submitted</th><th></th></tr>
             </thead>
             <tbody>
             <tr th:each="c : ${page.content}">
-                <td th:text="${c.title}">Title</td>
-                <td th:text="${c.category.name}">Category</td>
-                <td><span class="badge" th:classappend="'text-bg-' + ${c.priority.badgeClass}" th:text="${c.priority.label}">Priority</span></td>
-                <td><span class="badge" th:classappend="'text-bg-' + ${c.status.badgeClass}" th:text="${c.status.label}">Status</span></td>
-                <td th:text="${c.createdAtDisplay}">Date</td>
-                <td><a class="btn btn-sm btn-outline-primary" th:href="@{/complaints/{id}(id=${c.id})}">Open</a></td>
+                <td data-label="Title" th:text="${c.title}">Title</td>
+                <td data-label="Category" th:text="${c.category.name}">Category</td>
+                <td data-label="Priority"><span class="badge" th:classappend="'text-bg-' + ${c.priority.badgeClass}" th:text="${c.priority.label}">Priority</span></td>
+                <td data-label="Status"><span class="badge" th:classappend="'text-bg-' + ${c.status.badgeClass}" th:text="${c.status.label}">Status</span> <span class="badge text-bg-danger" th:if="${c.overdue}">Overdue</span></td>
+                <td data-label="Submitted" th:text="${c.createdAtDisplay}">Date</td>
+                <td data-label=""><a class="btn btn-sm btn-outline-primary" th:href="@{/complaints/{id}(id=${c.id})}">Open</a></td>
             </tr>
             </tbody>
         </table>
@@ -86,14 +100,17 @@
     <nav class="mt-3" th:if="${page.totalPages > 1}" aria-label="Pages">
         <ul class="pagination">
             <li class="page-item" th:classappend="${page.first} ? 'disabled'">
-                <a class="page-link" th:href="@{/authority/dashboard(page=${page.number - 1},q=${filter.q},status=${filter.status},categoryId=${filter.categoryId},from=${filter.from},to=${filter.to})}">Previous</a>
+                <a class="page-link" th:href="@{/authority/dashboard(page=${page.number - 1},q=${filter.q},overdue=${filter.overdue},status=${filter.status},categoryId=${filter.categoryId},from=${filter.from},to=${filter.to})}">Previous</a>
             </li>
             <li class="page-item disabled"><span class="page-link" th:text="'Page ' + ${page.number + 1} + ' of ' + ${page.totalPages}">Page</span></li>
             <li class="page-item" th:classappend="${page.last} ? 'disabled'">
-                <a class="page-link" th:href="@{/authority/dashboard(page=${page.number + 1},q=${filter.q},status=${filter.status},categoryId=${filter.categoryId},from=${filter.from},to=${filter.to})}">Next</a>
+                <a class="page-link" th:href="@{/authority/dashboard(page=${page.number + 1},q=${filter.q},overdue=${filter.overdue},status=${filter.status},categoryId=${filter.categoryId},from=${filter.from},to=${filter.to})}">Next</a>
             </li>
         </ul>
     </nav>
+
+    <h2 class="h5 mt-5 mb-3">Statistics</h2>
+    <div th:replace="~{fragments/charts :: charts}"></div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 </body>

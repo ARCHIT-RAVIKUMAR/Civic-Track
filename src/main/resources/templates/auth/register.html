@@ -3,38 +3,51 @@
 <head th:replace="~{fragments/layout :: head('Register')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-5" style="max-width: 520px;">
-    <h1 class="h3 mb-4">Create a citizen account</h1>
+<main id="main-content" class="container py-4 auth-wrap">
+    <div class="card shadow-sm auth-card" style="max-width: 500px;"><div class="card-body p-4">
+        <div class="text-center mb-4">
+            <div class="auth-logo mb-2"><i class="bi bi-person-plus"></i></div>
+            <h1 class="h4 mb-1">Create your account</h1>
+            <p class="text-muted small mb-0">It takes a minute. Citizens can report and track civic issues.</p>
+        </div>
 
-    <form th:action="@{/register}" th:object="${registrationForm}" method="post" class="card card-body shadow-sm" novalidate>
-        <div class="mb-3">
-            <label for="fullName" class="form-label">Full name</label>
-            <input type="text" class="form-control" id="fullName" th:field="*{fullName}"
-                   th:classappend="${#fields.hasErrors('fullName')} ? 'is-invalid'">
-            <div class="invalid-feedback" th:errors="*{fullName}"></div>
-        </div>
-        <div class="mb-3">
-            <label for="email" class="form-label">Email</label>
-            <input type="email" class="form-control" id="email" th:field="*{email}"
-                   th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'" autocomplete="email">
-            <div class="invalid-feedback" th:errors="*{email}"></div>
-        </div>
-        <div class="mb-3">
-            <label for="password" class="form-label">Password</label>
-            <input type="password" class="form-control" id="password" th:field="*{password}"
-                   th:classappend="${#fields.hasErrors('password')} ? 'is-invalid'" autocomplete="new-password">
-            <div class="form-text">At least 8 characters, with a letter and a number.</div>
-            <div class="invalid-feedback" th:errors="*{password}"></div>
-        </div>
-        <div class="mb-3">
-            <label for="confirmPassword" class="form-label">Confirm password</label>
-            <input type="password" class="form-control" id="confirmPassword" th:field="*{confirmPassword}"
-                   th:classappend="${#fields.hasErrors('passwordConfirmed')} ? 'is-invalid'" autocomplete="new-password">
-            <div class="invalid-feedback" th:errors="*{passwordConfirmed}"></div>
-        </div>
-        <button type="submit" class="btn btn-primary w-100">Register</button>
-    </form>
-    <p class="mt-3 text-center">Already registered? <a th:href="@{/login}">Log in</a></p>
+        <form th:action="@{/register}" th:object="${registrationForm}" method="post" novalidate>
+            <div class="mb-3">
+                <label for="fullName" class="form-label">Full name</label>
+                <input type="text" class="form-control" id="fullName" th:field="*{fullName}"
+                       th:classappend="${#fields.hasErrors('fullName')} ? 'is-invalid'" autocomplete="name">
+                <div class="invalid-feedback" th:errors="*{fullName}"></div>
+            </div>
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" autocapitalize="none" spellcheck="false" class="form-control" id="email" th:field="*{email}"
+                       th:classappend="${#fields.hasErrors('email')} ? 'is-invalid'" autocomplete="email">
+                <div class="invalid-feedback" th:errors="*{email}"></div>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <div class="input-group has-validation">
+                    <input type="password" class="form-control" id="password" data-password-rules th:field="*{password}"
+                           th:classappend="${#fields.hasErrors('password')} ? 'is-invalid'" autocomplete="new-password">
+                    <button class="btn btn-outline-secondary toggle-password" type="button" data-target="password"
+                            aria-label="Show password"><i class="bi bi-eye"></i></button>
+                    <div class="invalid-feedback" th:errors="*{password}"></div>
+                </div>
+                <div class="form-text">At least 8 characters, with a letter and a number.</div>
+            </div>
+            <div class="mb-4">
+                <label for="confirmPassword" class="form-label">Confirm password</label>
+                <div class="input-group">
+                    <input type="password" class="form-control" id="confirmPassword" th:field="*{confirmPassword}"
+                       th:classappend="${#fields.hasErrors('passwordConfirmed')} ? 'is-invalid'" autocomplete="new-password">
+                    <button class="btn btn-outline-secondary toggle-password" type="button" data-target="confirmPassword" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                </div>
+                <div class="invalid-feedback" th:errors="*{passwordConfirmed}"></div>
+            </div>
+            <button type="submit" class="btn btn-primary w-100 btn-lg">Register</button>
+        </form>
+        <p class="mt-3 mb-0 text-center small">Already registered? <a th:href="@{/login}">Log in</a></p>
+    </div></div>
 </main>
 <footer th:replace="~{fragments/layout :: footer}"></footer>
 </body>

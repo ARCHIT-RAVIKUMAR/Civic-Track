@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Counts wrong passwords per e-mail. After the limit the account is locked for a while,
@@ -37,10 +38,12 @@ public class LoginAttemptService {
         this.clock = clock;
     }
 
-    public void recordFailure(String email) {
+    /** @return true when THIS failure caused the account to become locked */
+    public boolean recordFailure(String email) {
         if (attempts.size() > 10_000) {
             attempts.clear(); // protects memory from random-email floods
         }
+        AtomicBoolean newlyLocked = new AtomicBoolean(false);
         attempts.compute(normalize(email), (key, state) -> {
             Instant now = clock.instant();
             boolean lockActive = state != null && state.lockedUntil() != null && state.lockedUntil().isAfter(now);
@@ -50,8 +53,12 @@ public class LoginAttemptService {
             boolean lockExpired = state != null && state.lockedUntil() != null;
             int failures = (state == null || lockExpired) ? 1 : state.failures() + 1;
             Instant lockedUntil = failures >= maxAttempts ? now.plus(lockDuration) : null;
+            if (lockedUntil != null) {
+                newlyLocked.set(true);
+            }
             return new State(failures, lockedUntil);
         });
+        return newlyLocked.get();
     }
 
     public void recordSuccess(String email) {

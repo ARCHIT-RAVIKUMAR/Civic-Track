@@ -84,6 +84,13 @@ public class User extends BaseEntity {
         this.passwordHash = newPasswordHash;
     }
 
+    public void changeEmail(String newEmail) {
+        if (newEmail == null || newEmail.isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        this.email = newEmail.trim().toLowerCase();
+    }
+
     public void rename(String newFullName) {
         if (newFullName == null || newFullName.isBlank()) {
             throw new IllegalArgumentException("Full name is required");

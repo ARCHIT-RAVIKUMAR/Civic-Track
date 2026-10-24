@@ -34,7 +34,19 @@ public interface UserService {
 
     void toggleEnabled(UUID userId, User admin);
 
+    /** Admin sets a new password for someone who forgot theirs. Not allowed on your own account. */
+    void resetPassword(UUID userId, String newPassword, User admin);
+
     void updateName(UUID userId, String fullName, User admin);
+
+    /**
+     * Admin edits a person's name, login email and role in one step. A null email or role means "leave unchanged".
+     * Nothing is changed unless everything is valid. Admins cannot change their own email or role.
+     */
+    void updateDetails(UUID userId, String fullName, String email, Role role, User admin);
+
+    /** CSV list of all accounts (admin only). Never includes passwords. */
+    String exportCsv(User admin);
 
     /** Deletes an account that has no activity. Accounts with history must be disabled instead. */
     void deleteUser(UUID userId, User admin);

@@ -36,12 +36,14 @@ public class AuthorityController {
     private final UserService userService;
     private final ComplaintService complaintService;
     private final CategoryService categoryService;
+    private final ChartDataHelper chartDataHelper;
 
     public AuthorityController(UserService userService, ComplaintService complaintService,
-                               CategoryService categoryService) {
+                               CategoryService categoryService, ChartDataHelper chartDataHelper) {
         this.userService = userService;
         this.complaintService = complaintService;
         this.categoryService = categoryService;
+        this.chartDataHelper = chartDataHelper;
     }
 
     @GetMapping("/dashboard")
@@ -54,6 +56,8 @@ public class AuthorityController {
         model.addAttribute("statuses", ComplaintStatus.values());
         model.addAttribute("categories", categoryService.findAll());
         model.addAttribute("counts", complaintService.countByStatus());
+        model.addAttribute("overdueCount", complaintService.countOverdue());
+        chartDataHelper.addTo(model);
         return "authority/dashboard";
     }
 

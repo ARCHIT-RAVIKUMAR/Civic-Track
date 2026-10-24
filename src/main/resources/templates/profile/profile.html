@@ -3,7 +3,7 @@
 <head th:replace="~{fragments/layout :: head('My profile')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
-<main class="container py-4" style="max-width: 760px;">
+<main id="main-content" class="container py-4" style="max-width: 760px;">
     <h1 class="h3 mb-3">My profile</h1>
     <div th:replace="~{fragments/layout :: flash}"></div>
 
@@ -28,21 +28,30 @@
         <h2 class="h6">Change password</h2>
         <div class="mb-3">
             <label for="currentPassword" class="form-label">Current password</label>
-            <input type="password" class="form-control" id="currentPassword" th:field="*{currentPassword}"
+            <div class="input-group">
+                    <input type="password" class="form-control" id="currentPassword" th:field="*{currentPassword}"
                    th:classappend="${#fields.hasErrors('currentPassword')} ? 'is-invalid'" autocomplete="current-password">
+                    <button class="btn btn-outline-secondary toggle-password" type="button" data-target="currentPassword" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                </div>
             <div class="invalid-feedback" th:errors="*{currentPassword}"></div>
         </div>
         <div class="mb-3">
             <label for="newPassword" class="form-label">New password</label>
-            <input type="password" class="form-control" id="newPassword" th:field="*{newPassword}"
+            <div class="input-group">
+                    <input type="password" class="form-control" id="newPassword" data-password-rules th:field="*{newPassword}"
                    th:classappend="${#fields.hasErrors('newPassword')} ? 'is-invalid'" autocomplete="new-password">
+                    <button class="btn btn-outline-secondary toggle-password" type="button" data-target="newPassword" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                </div>
             <div class="form-text">At least 8 characters, with a letter and a number.</div>
             <div class="invalid-feedback" th:errors="*{newPassword}"></div>
         </div>
         <div class="mb-3">
             <label for="confirmPassword" class="form-label">Confirm new password</label>
-            <input type="password" class="form-control" id="confirmPassword" th:field="*{confirmPassword}"
+            <div class="input-group">
+                    <input type="password" class="form-control" id="confirmPassword" th:field="*{confirmPassword}"
                    th:classappend="${#fields.hasErrors('passwordConfirmed')} ? 'is-invalid'" autocomplete="new-password">
+                    <button class="btn btn-outline-secondary toggle-password" type="button" data-target="confirmPassword" aria-label="Show password"><i class="bi bi-eye"></i></button>
+                </div>
             <div class="invalid-feedback" th:errors="*{passwordConfirmed}"></div>
         </div>
         <div><button type="submit" class="btn btn-primary">Change password</button></div>
