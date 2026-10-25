@@ -17,6 +17,7 @@ erDiagram
     COMPLAINTS |o--o{ NOTIFICATIONS : "about"
     USERS ||--o{ ACTIVITY_LOG : "account history (user_id)"
     USERS |o--o{ ACTIVITY_LOG : "acted by (actor_id)"
+    USERS |o--o{ ANNOUNCEMENTS : "published by (created_by)"
 
     USERS {
         uuid id PK
@@ -36,6 +37,7 @@ erDiagram
     }
     COMPLAINTS {
         uuid id PK
+        varchar reference_number UK "e.g. CT-AB12-CD34"
         varchar title
         varchar description
         varchar location
@@ -89,6 +91,16 @@ erDiagram
         boolean is_read
         timestamp created_at
     }
+    ANNOUNCEMENTS {
+        uuid id PK
+        varchar title
+        varchar message
+        varchar severity "INFO|WARNING|URGENT"
+        boolean active
+        timestamp expires_at "nullable"
+        uuid created_by FK "nullable"
+        timestamp created_at
+    }
     ACTIVITY_LOG {
         uuid id PK
         uuid user_id FK
@@ -106,4 +118,5 @@ Design notes
 - `activity_log` records account events (logins, failed logins, lock-outs, password changes, admin actions). It never stores passwords or IP addresses.
 - A user's full activity timeline is built by combining `activity_log` with their complaints, status changes, comments and feedback.
 - Photos are stored on disk or in a private Supabase Storage bucket; only the generated file name is stored in the database.
-- Migrations: V1 schema, V2 categories, V3 notifications + WITHDRAWN, V4 comments + coordinates, V5 activity log.
+- Reference numbers are random, not sequential, so complaints cannot be guessed from the public tracking page.
+- Migrations: V1 schema, V2 categories, V3 notifications + WITHDRAWN, V4 comments + coordinates, V5 activity log, V6 reference numbers + announcements.

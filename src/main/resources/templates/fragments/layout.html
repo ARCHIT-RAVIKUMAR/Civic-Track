@@ -5,6 +5,19 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="CivicTrack - report, track and resolve civic issues in your city.">
+    <meta name="theme-color" content="#0d6efd">
+    <link rel="manifest" th:href="@{/manifest.webmanifest}">
+    <link rel="apple-touch-icon" th:href="@{/icons/apple-touch-icon.png}">
+    <script>
+        // Apply the saved (or system) light/dark theme before the page is drawn, so it never flashes
+        (function () {
+            try {
+                var saved = localStorage.getItem('ct-theme');
+                var dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                document.documentElement.setAttribute('data-bs-theme', saved || (dark ? 'dark' : 'light'));
+            } catch (e) { }
+        })();
+    </script>
     <title th:text="${title} + ' | CivicTrack'">CivicTrack</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%99%EF%B8%8F%3C/text%3E%3C/svg%3E">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -30,18 +43,36 @@
                     <a class="nav-link" th:href="@{/citizen/complaints/new}">Report an Issue</a></li>
                 <li class="nav-item" sec:authorize="hasRole('AUTHORITY')">
                     <a class="nav-link" th:href="@{/authority/dashboard}">All Complaints</a></li>
+                <li class="nav-item" sec:authorize="hasRole('AUTHORITY')">
+                    <a class="nav-link" th:href="@{/authority/map}">Map</a></li>
+                <li class="nav-item" sec:authorize="hasAnyRole('AUTHORITY','ADMIN')">
+                    <a class="nav-link" th:href="@{/workers/performance}">Workers</a></li>
                 <li class="nav-item" sec:authorize="hasRole('FIELD_WORKER')">
                     <a class="nav-link" th:href="@{/worker/dashboard}">My Assignments</a></li>
+                <li class="nav-item" sec:authorize="hasRole('FIELD_WORKER')">
+                    <a class="nav-link" th:href="@{/worker/map}">Map</a></li>
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')">
                     <a class="nav-link" th:href="@{/admin/dashboard}">Overview</a></li>
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')">
                     <a class="nav-link" th:href="@{/admin/users}">Users</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')">
-                    <a class="nav-link" th:href="@{/admin/categories}">Categories</a></li>
-                <li class="nav-item" sec:authorize="hasRole('ADMIN')">
-                    <a class="nav-link" th:href="@{/admin/audit}">Audit log</a></li>
+                <li class="nav-item dropdown" sec:authorize="hasRole('ADMIN')">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">More</a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" th:href="@{/admin/categories}">Categories</a></li>
+                        <li><a class="dropdown-item" th:href="@{/admin/announcements}">Announcements</a></li>
+                        <li><a class="dropdown-item" th:href="@{/admin/audit}">Audit log</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item" sec:authorize="isAnonymous()">
+                    <a class="nav-link" th:href="@{/track}">Track a complaint</a></li>
+                <li class="nav-item" sec:authorize="isAnonymous()">
+                    <a class="nav-link" th:href="@{/help}">Help</a></li>
             </ul>
             <ul class="navbar-nav align-items-lg-center gap-lg-2">
+                <li class="nav-item">
+                    <button type="button" class="btn btn-link nav-link" id="themeToggle"
+                            aria-label="Switch between light and dark mode"><i class="bi bi-moon-stars"></i></button>
+                </li>
                 <li class="nav-item" sec:authorize="isAnonymous()">
                     <a class="nav-link" th:href="@{/login}">Log in</a></li>
                 <li class="nav-item" sec:authorize="isAnonymous()">
@@ -83,10 +114,24 @@
 <div th:fragment="flash">
     <div class="alert alert-success" role="alert" th:if="${success}" th:text="${success}"></div>
     <div class="alert alert-danger" role="alert" th:if="${error}" th:text="${error}"></div>
+    <div class="alert alert-dismissible" role="status" th:each="a : ${announcements}"
+         th:classappend="'alert-' + ${a.severity.alertClass}">
+        <i class="bi" th:classappend="${a.severity.icon}"></i>
+        <strong th:text="${a.title}">Title</strong>
+        <span th:text="${a.message}">Message</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
 </div>
 
 <footer th:fragment="footer" class="site-footer text-center small">
     <div class="container">
+        <div class="mb-2">
+            <a th:href="@{/help}">Help &amp; FAQ</a> &middot;
+            <a th:href="@{/track}">Track a complaint</a> &middot;
+            <a th:href="@{/help#privacy}">Privacy</a>
+            <button type="button" id="installApp" class="btn btn-sm btn-outline-light ms-2 d-none">
+                <i class="bi bi-download"></i> Install app</button>
+        </div>
         <div class="fw-semibold text-white mb-1"><i class="bi bi-buildings"></i> CivicTrack</div>
         <div>Civic Issue Reporting and Management System &middot; College demonstration project</div>
         <div class="mt-1">Built with Java 21, Spring Boot, Thymeleaf and PostgreSQL</div>
@@ -198,6 +243,47 @@
                     } catch (err) { /* use the normal link */ }
                 });
             });
+            // Light / dark theme toggle (the saved choice is applied in <head> before the page is drawn)
+            var themeBtn = document.getElementById('themeToggle');
+            function themeIcon() {
+                if (!themeBtn) { return; }
+                var dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                themeBtn.querySelector('i').className = dark ? 'bi bi-sun' : 'bi bi-moon-stars';
+            }
+            if (themeBtn) {
+                themeIcon();
+                themeBtn.addEventListener('click', function () {
+                    var dark = document.documentElement.getAttribute('data-bs-theme') === 'dark';
+                    var next = dark ? 'light' : 'dark';
+                    document.documentElement.setAttribute('data-bs-theme', next);
+                    try { localStorage.setItem('ct-theme', next); } catch (e) { }
+                    themeIcon();
+                });
+            }
+            // "Install app" button (only shown when the browser says the site can be installed)
+            var deferredPrompt = null;
+            var installBtn = document.getElementById('installApp');
+            window.addEventListener('beforeinstallprompt', function (e) {
+                e.preventDefault();
+                deferredPrompt = e;
+                if (installBtn) { installBtn.classList.remove('d-none'); }
+            });
+            if (installBtn) {
+                installBtn.addEventListener('click', function () {
+                    if (!deferredPrompt) { return; }
+                    deferredPrompt.prompt();
+                    var done = function () { deferredPrompt = null; installBtn.classList.add('d-none'); };
+                    deferredPrompt.userChoice.then(done, done);
+                });
+            }
+            window.addEventListener('appinstalled', function () {
+                if (installBtn) { installBtn.classList.add('d-none'); }
+            });
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function () {
+                    navigator.serviceWorker.register('/sw.js').catch(function () { });
+                });
+            }
             // Success messages fade away by themselves
             document.querySelectorAll('.alert-success').forEach(function (alertBox) {
                 setTimeout(function () {

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Track a complaint')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main id="main-content" class="container py-4" style="max-width: 720px;">
+    <h1 class="h3 mb-1">Track a complaint</h1>
+    <p class="text-muted">Type the reference number you were given when the complaint was reported (for example <code>CT-AB12-CD34</code>).
+        You do not need to log in.</p>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <form th:action="@{/track}" method="get" class="card card-body shadow-sm mb-4">
+        <label for="ref" class="form-label">Reference number</label>
+        <div class="d-flex gap-2">
+            <input type="text" class="form-control" id="ref" name="ref" th:value="${ref}" placeholder="CT-AB12-CD34"
+                   maxlength="20" required autocomplete="off" autocapitalize="characters" spellcheck="false">
+            <button type="submit" class="btn btn-primary">Track</button>
+        </div>
+    </form>
+
+    <div class="alert alert-warning" th:if="${searched != null and info == null}">
+        <i class="bi bi-exclamation-triangle"></i> No complaint was found for that reference number. Please check it and try again.
+    </div>
+
+    <div class="card shadow-sm" th:if="${info != null}">
+        <div class="card-body">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div>
+                    <div class="small text-muted">Reference</div>
+                    <div class="h5 mb-0" th:text="${info.referenceNumber}">CT-0000-0000</div>
+                </div>
+                <span class="badge fs-6" th:classappend="'text-bg-' + ${info.status.badgeClass}" th:text="${info.status.label}">Status</span>
+            </div>
+            <p class="text-muted small mt-2 mb-3">
+                <span th:text="${info.categoryName}">Category</span> &middot;
+                reported <span th:text="${info.createdDisplay}">Date</span> &middot;
+                last update <span th:text="${info.updatedDisplay}">Date</span>
+            </p>
+            <h2 class="h6">Progress</h2>
+            <ul class="timeline mb-0">
+                <li th:each="step : ${info.steps}">
+                    <span class="badge" th:classappend="'text-bg-' + ${step.status.badgeClass}" th:text="${step.status.label}">Status</span>
+                    <span class="small text-muted ms-1" th:text="${step.dateDisplay}">Date</span>
+                </li>
+            </ul>
+            <p class="small text-muted mt-3 mb-0">For privacy, only the status is shown here. The person who reported the
+                complaint can log in to see the details and add comments.</p>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

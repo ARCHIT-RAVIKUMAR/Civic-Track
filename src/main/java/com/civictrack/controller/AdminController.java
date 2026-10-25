@@ -1,6 +1,7 @@
 package com.civictrack.controller;
 
 import com.civictrack.dto.AdminUserForm;
+import com.civictrack.dto.AnnouncementForm;
 import com.civictrack.dto.CategoryForm;
 import com.civictrack.dto.ResetPasswordForm;
 import com.civictrack.entity.StatusHistory;
@@ -10,6 +11,7 @@ import com.civictrack.enums.Role;
 import com.civictrack.exception.BusinessRuleException;
 import com.civictrack.service.ActivityItem;
 import com.civictrack.service.ActivityService;
+import com.civictrack.service.AnnouncementService;
 import com.civictrack.service.CategoryService;
 import com.civictrack.service.ComplaintService;
 import com.civictrack.service.UserService;
@@ -46,15 +48,17 @@ public class AdminController {
     private final ComplaintService complaintService;
     private final ChartDataHelper chartDataHelper;
     private final ActivityService activityService;
+    private final AnnouncementService announcementService;
 
     public AdminController(UserService userService, CategoryService categoryService,
                            ComplaintService complaintService, ChartDataHelper chartDataHelper,
-                           ActivityService activityService) {
+                           ActivityService activityService, AnnouncementService announcementService) {
         this.userService = userService;
         this.categoryService = categoryService;
         this.complaintService = complaintService;
         this.chartDataHelper = chartDataHelper;
         this.activityService = activityService;
+        this.announcementService = announcementService;
     }
 
     @GetMapping("/dashboard")
@@ -243,6 +247,49 @@ public class AdminController {
             redirect.addFlashAttribute("error", ex.getMessage());
         }
         return "redirect:/admin/users";
+    }
+
+    // ---------------- announcements ----------------
+
+    @GetMapping("/announcements")
+    public String announcements(Authentication auth, Model model) {
+        model.addAttribute("announcementList", announcementService.findAll(admin(auth)));
+        model.addAttribute("announcementForm", new AnnouncementForm());
+        model.addAttribute("severities", com.civictrack.enums.AnnouncementSeverity.values());
+        return "admin/announcements";
+    }
+
+    @PostMapping("/announcements")
+    public String createAnnouncement(@Valid @ModelAttribute("announcementForm") AnnouncementForm form,
+                                     BindingResult result, Authentication auth,
+                                     Model model, RedirectAttributes redirect) {
+        User adminUser = admin(auth);
+        if (!result.hasErrors()) {
+            try {
+                announcementService.create(form, adminUser);
+                redirect.addFlashAttribute("success", "Announcement published.");
+                return "redirect:/admin/announcements";
+            } catch (BusinessRuleException ex) {
+                model.addAttribute("error", ex.getMessage());
+            }
+        }
+        model.addAttribute("announcementList", announcementService.findAll(adminUser));
+        model.addAttribute("severities", com.civictrack.enums.AnnouncementSeverity.values());
+        return "admin/announcements";
+    }
+
+    @PostMapping("/announcements/{id}/toggle")
+    public String toggleAnnouncement(@PathVariable UUID id, Authentication auth, RedirectAttributes redirect) {
+        announcementService.toggle(id, admin(auth));
+        redirect.addFlashAttribute("success", "Announcement updated.");
+        return "redirect:/admin/announcements";
+    }
+
+    @PostMapping("/announcements/{id}/delete")
+    public String deleteAnnouncement(@PathVariable UUID id, Authentication auth, RedirectAttributes redirect) {
+        announcementService.delete(id, admin(auth));
+        redirect.addFlashAttribute("success", "Announcement deleted.");
+        return "redirect:/admin/announcements";
     }
 
     // ---------------- categories ----------------

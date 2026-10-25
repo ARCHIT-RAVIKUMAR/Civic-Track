@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Complaints map')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main id="main-content" class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h3 mb-0">Complaints map</h1>
+        <a class="btn btn-outline-secondary btn-sm" th:href="@{/authority/dashboard}">List view</a>
+    </div>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <form th:action="@{/authority/map}" method="get" class="card card-body shadow-sm mb-3">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label for="status" class="form-label">Status</label>
+                <select class="form-select" id="status" name="status">
+                    <option value="">All</option>
+                    <option th:each="s : ${statuses}" th:value="${s.name()}" th:text="${s.label}"
+                            th:selected="${filter.status == s}">Status</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="categoryId" class="form-label">Category</label>
+                <select class="form-select" id="categoryId" name="categoryId">
+                    <option value="">All</option>
+                    <option th:each="c : ${categories}" th:value="${c.id}" th:text="${c.name}"
+                            th:selected="${filter.categoryId != null and filter.categoryId == c.id}">Category</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="overdue" name="overdue" value="true" th:checked="${filter.overdue}">
+                    <label class="form-check-label" for="overdue">Overdue only</label>
+                </div>
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Apply</button>
+                <a class="btn btn-outline-secondary" th:href="@{/authority/map}">Reset</a>
+            </div>
+        </div>
+    </form>
+
+    <div class="alert alert-info" th:if="${#lists.isEmpty(pins)}">
+        No complaints with a map pin match these filters. Citizens can drop a pin when they report an issue.
+    </div>
+
+    <div class="card shadow-sm" th:unless="${#lists.isEmpty(pins)}">
+        <div class="card-body">
+            <div id="allMap" style="height: 62vh; min-height: 340px; border-radius: .5rem;"></div>
+            <div class="d-flex flex-wrap gap-3 small mt-3">
+                <span><span class="badge" style="background:#6c757d">&nbsp;</span> Submitted</span>
+                <span><span class="badge" style="background:#0dcaf0">&nbsp;</span> Under review</span>
+                <span><span class="badge" style="background:#0d6efd">&nbsp;</span> Assigned</span>
+                <span><span class="badge" style="background:#ffc107">&nbsp;</span> In progress</span>
+                <span><span class="badge" style="background:#198754">&nbsp;</span> Resolved</span>
+                <span><span class="badge" style="background:#212529">&nbsp;</span> Closed</span>
+                <span><span class="badge" style="background:#dc3545">&nbsp;</span> Rejected</span>
+                <span><span class="badge" style="background:#adb5bd">&nbsp;</span> Withdrawn</span>
+                <span class="text-danger"><i class="bi bi-circle"></i> red ring = overdue</span>
+            </div>
+            <p class="small text-muted mt-2 mb-0"><span th:text="${#lists.size(pins)}">0</span> complaint(s) shown (newest 1000 at most). Click a pin to open it.</p>
+        </div>
+    </div>
+</main>
+
+<th:block th:unless="${#lists.isEmpty(pins)}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script th:inline="javascript">
+        (function () {
+            var pins = /*[[${pins}]]*/ [];
+            var base = /*[[@{/complaints/}]]*/ '/complaints/';
+            if (typeof L === 'undefined' || !pins.length) { return; }
+            var colours = {
+                SUBMITTED: '#6c757d', UNDER_REVIEW: '#0dcaf0', ASSIGNED: '#0d6efd', IN_PROGRESS: '#ffc107',
+                RESOLVED: '#198754', CLOSED: '#212529', REJECTED: '#dc3545', WITHDRAWN: '#adb5bd'
+            };
+            var map = L.map('allMap');
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+            var points = [];
+            pins.forEach(function (pin) {
+                var box = document.createElement('div');
+                var link = document.createElement('a');
+                link.href = base + pin.id;
+                link.textContent = pin.title;
+                box.appendChild(link);
+                var meta = document.createElement('div');
+                meta.className = 'small text-muted';
+                meta.textContent = pin.ref + ' - ' + pin.status + (pin.overdue ? ' - OVERDUE' : '');
+                box.appendChild(meta);
+                L.circleMarker([pin.lat, pin.lng], {
+                    radius: pin.overdue ? 11 : 9,
+                    color: pin.overdue ? '#dc3545' : '#ffffff',
+                    weight: pin.overdue ? 4 : 2,
+                    fillColor: colours[pin.statusKey] || '#0d6efd',
+                    fillOpacity: 0.9
+                }).addTo(map).bindPopup(box);
+                points.push([pin.lat, pin.lng]);
+            });
+            map.fitBounds(L.latLngBounds(points), { padding: [30, 30], maxZoom: 16 });
+        })();
+    </script>
+</th:block>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

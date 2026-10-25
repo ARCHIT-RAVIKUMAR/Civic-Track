@@ -1,6 +1,8 @@
 package com.civictrack.controller;
 
+import com.civictrack.entity.Announcement;
 import com.civictrack.entity.Notification;
+import com.civictrack.service.AnnouncementService;
 import com.civictrack.service.InboxService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -13,9 +15,20 @@ import java.util.List;
 public class GlobalModelAttributes {
 
     private final InboxService inboxService;
+    private final AnnouncementService announcementService;
 
-    public GlobalModelAttributes(InboxService inboxService) {
+    public GlobalModelAttributes(InboxService inboxService, AnnouncementService announcementService) {
         this.inboxService = inboxService;
+        this.announcementService = announcementService;
+    }
+
+    @ModelAttribute("announcements")
+    public List<Announcement> announcements() {
+        try {
+            return announcementService.findCurrent();
+        } catch (RuntimeException ex) {
+            return List.of(); // a notice must never break a page
+        }
     }
 
     @ModelAttribute("unreadCount")

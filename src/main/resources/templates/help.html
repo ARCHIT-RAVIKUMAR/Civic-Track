@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Help and FAQ')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main id="main-content" class="container py-4" style="max-width: 860px;">
+    <h1 class="h3 mb-1">Help &amp; FAQ</h1>
+    <p class="text-muted">Everything you need to use CivicTrack.</p>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="card shadow-sm mb-4"><div class="card-body">
+        <h2 class="h5">How it works</h2>
+        <ol class="mb-0">
+            <li><strong>Report</strong> - a citizen describes the problem, picks a category, adds the location (and optionally a map pin and photo).</li>
+            <li><strong>Review</strong> - a municipal officer reviews it and sets its priority.</li>
+            <li><strong>Assign &amp; fix</strong> - the officer assigns it to a field worker, who updates the progress.</li>
+            <li><strong>Verify</strong> - the worker marks it completed, the officer verifies and closes it, and the citizen can leave feedback.</li>
+        </ol>
+    </div></div>
+
+    <div class="card shadow-sm mb-4"><div class="card-body">
+        <h2 class="h5">What the statuses mean</h2>
+        <table class="table align-middle mb-0">
+            <tbody>
+            <tr><td><span class="badge text-bg-secondary">Submitted</span></td><td>Received and waiting for an officer.</td></tr>
+            <tr><td><span class="badge text-bg-info">Under Review</span></td><td>An officer is checking it.</td></tr>
+            <tr><td><span class="badge text-bg-primary">Assigned</span></td><td>A field worker has been chosen.</td></tr>
+            <tr><td><span class="badge text-bg-warning">In Progress</span></td><td>Work has started.</td></tr>
+            <tr><td><span class="badge text-bg-success">Resolved</span></td><td>The worker says it is done; waiting for the officer to verify.</td></tr>
+            <tr><td><span class="badge text-bg-dark">Closed</span></td><td>Verified and finished.</td></tr>
+            <tr><td><span class="badge text-bg-danger">Rejected</span></td><td>Not valid or a duplicate; the reason is shown on the complaint.</td></tr>
+            <tr><td><span class="badge text-bg-light">Withdrawn</span></td><td>Cancelled by the citizen before it was assigned.</td></tr>
+            </tbody>
+        </table>
+    </div></div>
+
+    <h2 class="h5 mb-3">Frequently asked questions</h2>
+    <div class="accordion mb-4" id="faq">
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#q1">How do I report a problem?</button></h3>
+            <div id="q1" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">
+                Register a free citizen account, log in and choose <em>Report an Issue</em>. Fill in the title, category,
+                description and location. Dropping a pin on the map and adding a photo help the field worker a lot.
+            </div></div>
+        </div>
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#q2">How can I follow my complaint without logging in?</button></h3>
+            <div id="q2" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">
+                After you submit, you get a <strong>reference number</strong> like <code>CT-AB12-CD34</code>. Enter it on the
+                <a th:href="@{/track}">Track a complaint</a> page to see the current status and progress. Only the status is shown, never your details.
+            </div></div>
+        </div>
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#q3">Can I cancel a complaint?</button></h3>
+            <div id="q3" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">
+                Yes. Until it is assigned to a worker you can open it and choose <em>Withdraw this complaint</em>.
+            </div></div>
+        </div>
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#q4">The problem came back after the complaint was closed.</button></h3>
+            <div id="q4" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">
+                Within 7 days of closing you can open the complaint and choose <em>Reopen complaint</em>, explaining what is still wrong.
+                After 7 days, please report a new complaint.
+            </div></div>
+        </div>
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#q5">What does "Overdue" mean?</button></h3>
+            <div id="q5" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">
+                Every priority has a target time: Urgent 1 day, High 3 days, Medium 7 days, Low 14 days. Open work older than its
+                target is marked <span class="badge text-bg-danger">Overdue</span> so officers can act on it first.
+            </div></div>
+        </div>
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#q6">I forgot my password.</button></h3>
+            <div id="q6" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">
+                Ask a system administrator to reset it. They will give you a temporary password; change it afterwards from
+                <em>My profile</em>. After 5 wrong passwords an account is locked for 10 minutes for safety.
+            </div></div>
+        </div>
+        <div class="accordion-item">
+            <h3 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#q7">Can I install CivicTrack on my phone?</button></h3>
+            <div id="q7" class="accordion-collapse collapse" data-bs-parent="#faq"><div class="accordion-body">
+                Yes. Open the site in Chrome or Edge and choose <em>Install app</em> (shown in the footer or the browser menu).
+                On an iPhone use Safari's <em>Share -> Add to Home Screen</em>. Use the moon/sun button in the top bar for dark mode.
+            </div></div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4" id="privacy"><div class="card-body">
+        <h2 class="h5">Privacy</h2>
+        <ul class="mb-0">
+            <li>We store your name, email, the complaints you submit (including any photo and map location) and your comments.</li>
+            <li>Your password is stored only as a secure hash. Administrators cannot see it.</li>
+            <li>Account events such as logins are recorded for security and are visible to administrators only. IP addresses are not stored.</li>
+            <li>The public tracking page shows only the status and dates, never names or descriptions.</li>
+            <li>This is a college demonstration project: please do not submit sensitive personal information.</li>
+        </ul>
+    </div></div>
+
+    <div class="card shadow-sm"><div class="card-body">
+        <h2 class="h5">Need more help?</h2>
+        <p class="mb-0">For account problems, contact the system administrator of your municipality. For a problem with the
+            site itself, report it to the project team.</p>
+    </div></div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface ComplaintRepository extends JpaRepository<Complaint, UUID>, JpaSpecificationExecutor<Complaint> {
@@ -23,6 +24,8 @@ public interface ComplaintRepository extends JpaRepository<Complaint, UUID>, Jpa
     long countByStatus(ComplaintStatus status);
 
     boolean existsByCitizen(User citizen);
+
+    Optional<Complaint> findByReferenceNumber(String referenceNumber);
 
     /** Rows of [categoryName, count], largest first. Used by the dashboard charts. */
     @Query("select c.category.name, count(c) from Complaint c group by c.category.name order by count(c) desc")

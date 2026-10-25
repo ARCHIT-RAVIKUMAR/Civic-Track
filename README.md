@@ -37,6 +37,7 @@ verified and closed.
 
 ### Citizen
 - Register and log in; change name and password from **My profile**
+- Every complaint gets a short **reference number** (e.g. `CT-AB12-CD34`) shown after submitting
 - Report a complaint: title, description, category, location text, **optional map pin** (click the map or use "my current location") and an optional JPEG/PNG photo
 - **Duplicate warning** when a similar open complaint already exists nearby
 - Track every complaint with a **status timeline**; paged list of own complaints
@@ -47,6 +48,8 @@ verified and closed.
 ### Municipal authority
 - Dashboard with search, filters (status, category, date, **overdue only**), paging and **CSV export**
 - Status chips with counts, plus charts (by status, by category)
+- **Map of all complaints** coloured by status (red ring = overdue), with filters
+- Worker workload is shown while assigning (least busy worker first)
 - Start review, set priority, **assign / re-assign** a field worker, **reject with a reason**, verify and **close**, or send work back to the worker
 - **Overdue marker**: a red badge when open work is older than the target for its priority (Urgent 1 day, High 3, Medium 7, Low 14)
 - Notified when a complaint is reported, completed by a worker, reopened or withdrawn
@@ -60,11 +63,16 @@ verified and closed.
 - **System overview**: key numbers, recent complaints, charts and status breakdown
 - **Users**: create staff accounts; one actions menu per user - **edit name, email and role**, view **activity timeline**, **reset password**, disable / enable, delete (only when the account has no history)
 - **Categories**: add, edit, hide / show
+- **Announcements**: publish notices (info / warning / urgent, optional end date) that appear at the top of the pages
+- **Worker performance**: open jobs, overdue jobs, completed jobs, average time to complete and average citizen rating per worker (also open to authorities)
 - **Audit log** of every status change, assignment, priority change and note, with **CSV export**
 - **Per-user activity timeline**: logins, failed logins, lock-outs, password and account changes, and the complaints, status changes, comments and feedback made by that user (no passwords or IP addresses are stored)
 - Read-only access to complaints (admins cannot comment or change work)
 
 ### For everyone
+- **Public tracking**: anyone can look up a complaint by its reference number (status and dates only - nothing personal) at `/track`
+- **Help & FAQ** page with the status meanings and privacy information
+- **Dark mode** (sun / moon button) and an **installable app** (add to home screen; a friendly offline page)
 - Responsive layout (tables turn into cards on phones), accessible forms, skip-to-content link, keyboard focus outlines
 - Password fields with **show / hide** button, live **strength bar** and Caps Lock warning
 - Friendly error pages, empty states, success / error messages, "please wait" state on buttons
@@ -118,21 +126,23 @@ validation. Controllers contain no business rules; services use constructor inje
 ```
 src/main/java/com/civictrack/
   config/       SecurityConfig, DataInitializer
-  controller/   Home, Auth, Citizen, Complaint, Authority, Worker, Admin, Profile, Notification (+ helpers)
+  controller/   Home (public pages), Auth, Citizen, Complaint, Authority, Worker, Admin, Profile, Notification,
+                WorkerPerformance (+ helpers)
   dto/          form objects with validation annotations
   entity/       BaseEntity, User, Category, Complaint, Assignment, StatusHistory, Feedback,
-                ComplaintComment, Notification, ActivityLog
-  enums/        Role, ComplaintStatus, Priority, ActivityType
+                ComplaintComment, Notification, ActivityLog, Announcement
+  enums/        Role, ComplaintStatus, Priority, ActivityType, AnnouncementSeverity
   exception/    custom exceptions + GlobalExceptionHandler
   repository/   Spring Data interfaces + ComplaintSpecs (dynamic filters)
   security/     CustomUserDetails(+Service), LoginAttemptService + listener
-  service/      interfaces: Complaint, User, Category, Feedback, Inbox, Activity, Notification, FileStorage
+  service/      interfaces: Complaint, User, Category, Feedback, Inbox, Activity, Announcement, WorkerStats,
+                Notification, FileStorage
   service/impl/ implementations and helpers (CsvUtil, ImageFiles, LocationSimilarity)
   validation/   @StrongPassword
 src/main/resources/
   db/migration/ V1 ... V5 (Flyway)
   templates/    Thymeleaf pages and fragments
-  static/css/   app.css
+  static/       css/app.css, manifest.webmanifest, sw.js, offline.html, icons/
 src/test/       unit, repository, security and page-rendering tests
 docs/           ER diagram, deployment guide, report outline, demo checklist
 ```
@@ -170,6 +180,7 @@ enums stored as strings, foreign keys, indexes and `CHECK` constraints. See [`do
 | `complaint_comments` | Conversation on a complaint |
 | `notifications` | In-app notifications |
 | `activity_log` | Account events (logins, security, admin actions) |
+| `announcements` | Notices shown at the top of the pages |
 
 | Migration | Content |
 |-----------|---------|
@@ -178,6 +189,7 @@ enums stored as strings, foreign keys, indexes and `CHECK` constraints. See [`do
 | V3 | Notifications, `WITHDRAWN` status |
 | V4 | Comments, map coordinates |
 | V5 | Activity log |
+| V6 | Complaint reference numbers, announcements |
 
 Never edit a migration that has already run - add a new one.
 
@@ -264,7 +276,8 @@ Supabase connection is needed.
 | `UserServiceImplTest` | Registration, hashing, admin edit / reset / delete rules, CSV export |
 | `CategoryServiceImplTest`, `InboxServiceImplTest`, `ActivityServiceImplTest` | Category editing, notification ownership, activity timeline |
 | `LoginAttemptServiceTest` | Lock-out rules |
-| `LocationSimilarityTest`, `CsvUtilTest`, `ImageFilesTest`, `ChartDataHelperTest` | Helper logic |
+| `LocationSimilarityTest`, `CsvUtilTest`, `ImageFilesTest`, `ChartDataHelperTest`, `ReferenceNumbersTest` | Helper logic |
+| `AnnouncementServiceImplTest`, `WorkerStatsServiceImplTest` | Announcements, worker performance maths |
 | `ComplaintRepositoryTest` | JPA mappings, filters, search, overdue filter |
 | `SecurityAccessTest` | Protected routes by role, CSRF, registration, login, lock-out, page rendering |
 | `CivicTrackApplicationTests` | Application context starts |
@@ -290,6 +303,7 @@ Free tiers can change or sleep and are never guaranteed - keep a local copy read
 | Feature | Status |
 |---------|--------|
 | Map pins, comments, charts, CSV export, overdue marker, reopen, audit log, activity timeline | Included |
+| Reference numbers + public tracking, authority map, announcements, worker performance, dark mode, installable app (PWA), Help / FAQ | Included |
 | Permanent photo storage in Supabase Storage | Implemented, **off by default** (needs a private bucket and server key) |
 | E-mail notifications | Implemented, **off by default** (needs an SMTP account) |
 | Forgot-password by e-mail | Not included - an administrator resets passwords |
@@ -300,6 +314,8 @@ Free tiers can change or sleep and are never guaranteed - keep a local copy read
 - Photos on the free host are lost on restart unless Supabase storage is enabled.
 - Maps use OpenStreetMap tiles (light use) and charts / icons load from a CDN, so they need internet access.
 - Changing a user's role or email takes effect the next time they log in.
+- The public tracking page is protected only by the randomness of the reference number (about 40 bits); it shows no personal data.
+- The installable app caches only an offline page, never complaint data. Charts and dark-mode colours update on the next page load.
 
 ---
 

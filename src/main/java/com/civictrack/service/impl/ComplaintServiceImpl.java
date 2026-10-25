@@ -23,6 +23,7 @@ import com.civictrack.service.CategoryService;
 import com.civictrack.service.ComplaintService;
 import com.civictrack.service.FileStorageService;
 import com.civictrack.service.NotificationService;
+import com.civictrack.service.TrackingInfo;
 import com.civictrack.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -144,6 +146,28 @@ public class ComplaintServiceImpl implements ComplaintService {
                 "The citizen withdrew this complaint. No further action is needed.", complaint);
     }
 
+    // ------------------------------------------------------------------ public tracking
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<TrackingInfo> track(String reference) {
+        String canonical = com.civictrack.entity.ReferenceNumbers.normalize(reference);
+        if (canonical == null) {
+            return Optional.empty();
+        }
+        return complaintRepository.findByReferenceNumber(canonical).map(c -> {
+            List<TrackingInfo.Step> steps = new ArrayList<>();
+            for (StatusHistory h : historyRepository.findByComplaintOrderByCreatedAtAsc(c)) {
+                if (h.getOldStatus() != null && h.getOldStatus() == h.getNewStatus()) {
+                    continue; // notes and priority changes are private
+                }
+                steps.add(new TrackingInfo.Step(h.getNewStatus(), h.getCreatedAtDisplay()));
+            }
+            return new TrackingInfo(c.getReferenceNumber(), c.getCategory().getName(), c.getStatus(),
+                    c.getCreatedAtDisplay(), c.getUpdatedAtDisplay(), steps);
+        });
+    }
+
     // ------------------------------------------------------------------ viewing
 
     @Override
@@ -198,9 +222,10 @@ public class ComplaintServiceImpl implements ComplaintService {
         requireRole(actor, Role.AUTHORITY);
         List<Complaint> rows = complaintRepository.findAll(
                 ComplaintSpecs.withFilter(filter), Sort.by(Sort.Direction.DESC, "createdAt"));
-        StringBuilder csv = new StringBuilder("Title,Category,Status,Priority,Location,Submitted\n");
+        StringBuilder csv = new StringBuilder("Reference,Title,Category,Status,Priority,Location,Submitted\n");
         for (Complaint c : rows) {
-            csv.append(csvCell(c.getTitle())).append(',')
+            csv.append(csvCell(c.getReferenceNumber())).append(',')
+               .append(csvCell(c.getTitle())).append(',')
                .append(csvCell(c.getCategory().getName())).append(',')
                .append(csvCell(c.getStatus().getLabel())).append(',')
                .append(csvCell(c.getPriority().getLabel())).append(',')
@@ -213,6 +238,15 @@ public class ComplaintServiceImpl implements ComplaintService {
     /** Quotes the cell and neutralises spreadsheet formulas (=, +, -, @) typed by users. */
     private String csvCell(String value) {
         return CsvUtil.cell(value);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Complaint> findForMap(ComplaintFilter filter, User actor) {
+        requireRole(actor, Role.AUTHORITY);
+        return complaintRepository.findAll(
+                ComplaintSpecs.withFilter(filter).and(ComplaintSpecs.withCoordinates()),
+                PageRequest.of(0, 1000, Sort.by(Sort.Direction.DESC, "createdAt"))).getContent();
     }
 
     @Override

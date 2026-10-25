@@ -81,7 +81,8 @@ public class CitizenController {
                 }
             }
             Complaint saved = complaintService.submit(form, image, citizen);
-            redirect.addFlashAttribute("success", "Complaint submitted. You can track it from your dashboard.");
+            redirect.addFlashAttribute("success", "Complaint submitted. Your reference number is "
+                    + saved.getReferenceNumber() + " - keep it to track the complaint.");
             return "redirect:/complaints/" + saved.getId();
         } catch (BusinessRuleException ex) {
             model.addAttribute("error", ex.getMessage());

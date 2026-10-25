@@ -1,5 +1,6 @@
 package com.civictrack.service;
 
+import com.civictrack.dto.ComplaintFilter;
 import com.civictrack.dto.ComplaintForm;
 import com.civictrack.entity.Assignment;
 import com.civictrack.entity.Category;
@@ -417,5 +418,36 @@ class ComplaintServiceImplTest {
     @Test
     void onlyAdministratorsCanExportTheAuditLog() {
         assertThrows(ForbiddenOperationException.class, () -> service.exportAuditCsv(authority));
+    }
+
+    // ---------------------------------------------------------------- tracking and map
+
+    @Test
+    void trackingShowsStatusStepsButNotPrivateNotes() {
+        StatusHistory submitted = new StatusHistory(complaint, null, ComplaintStatus.SUBMITTED, citizen, "Complaint submitted");
+        StatusHistory review = new StatusHistory(complaint, ComplaintStatus.SUBMITTED, ComplaintStatus.UNDER_REVIEW, authority, "Review started");
+        StatusHistory note = new StatusHistory(complaint, ComplaintStatus.UNDER_REVIEW, ComplaintStatus.UNDER_REVIEW, authority, "Priority set to High");
+        when(complaintRepository.findByReferenceNumber(complaint.getReferenceNumber())).thenReturn(Optional.of(complaint));
+        when(historyRepository.findByComplaintOrderByCreatedAtAsc(complaint)).thenReturn(List.of(submitted, review, note));
+
+        var info = service.track(" " + complaint.getReferenceNumber().toLowerCase() + " ").orElseThrow();
+
+        assertEquals(complaint.getReferenceNumber(), info.getReferenceNumber());
+        assertEquals(2, info.getSteps().size());          // the priority note is not shown
+        assertEquals("Streetlight", info.getCategoryName());
+    }
+
+    @Test
+    void trackingReturnsNothingForUnknownOrMalformedReferences() {
+        when(complaintRepository.findByReferenceNumber("CT-AAAA-BBBB")).thenReturn(Optional.empty());
+
+        assertTrue(service.track("CT-AAAA-BBBB").isEmpty());
+        assertTrue(service.track("nonsense").isEmpty());
+        assertTrue(service.track(null).isEmpty());
+    }
+
+    @Test
+    void onlyAuthoritiesCanUseTheMapQuery() {
+        assertThrows(ForbiddenOperationException.class, () -> service.findForMap(new ComplaintFilter(), citizen));
     }
 }

@@ -26,12 +26,20 @@ public final class ComplaintSpecs {
         return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
     }
 
+    /** Only complaints that have a map pin. */
+    public static Specification<Complaint> withCoordinates() {
+        return (root, query, cb) -> cb.and(
+                cb.isNotNull(root.get("latitude")),
+                cb.isNotNull(root.get("longitude")));
+    }
+
     public static Specification<Complaint> withFilter(ComplaintFilter filter) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (filter.getQ() != null && !filter.getQ().isBlank()) {
                 String pattern = "%" + escapeLike(filter.getQ().trim().toLowerCase(Locale.ROOT)) + "%";
                 predicates.add(cb.or(
+                        cb.like(cb.lower(root.<String>get("referenceNumber")), pattern, '\\'),
                         cb.like(cb.lower(root.<String>get("title")), pattern, '\\'),
                         cb.like(cb.lower(root.<String>get("location")), pattern, '\\'),
                         cb.like(cb.lower(root.<String>get("description")), pattern, '\\')));

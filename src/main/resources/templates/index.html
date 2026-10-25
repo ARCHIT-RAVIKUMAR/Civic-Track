@@ -3,6 +3,9 @@
 <head th:replace="~{fragments/layout :: head('Home')}"></head>
 <body>
 <nav th:replace="~{fragments/layout :: navbar}"></nav>
+<div class="container pt-3" th:unless="${#lists.isEmpty(announcements)}">
+    <div th:replace="~{fragments/layout :: flash}"></div>
+</div>
 
 <!-- HERO -->
 <section class="hero text-center">
@@ -40,6 +43,26 @@
                     <div class="text-muted">Resolved</div></div>
             </div>
         </div>
+    </section>
+
+    <!-- TRACK -->
+    <section class="mb-5">
+        <div class="card shadow-sm"><div class="card-body">
+            <div class="row align-items-center g-3">
+                <div class="col-md-5">
+                    <h2 class="h5 mb-1"><i class="bi bi-search"></i> Track a complaint</h2>
+                    <p class="text-muted small mb-0">Enter the reference number you received when you reported it. No login needed.</p>
+                </div>
+                <div class="col-md-7">
+                    <form th:action="@{/track}" method="get" class="d-flex gap-2">
+                        <label for="trackRef" class="visually-hidden">Reference number</label>
+                        <input type="text" id="trackRef" name="ref" class="form-control" placeholder="CT-AB12-CD34"
+                               maxlength="20" required autocomplete="off" autocapitalize="characters" spellcheck="false">
+                        <button type="submit" class="btn btn-primary">Track</button>
+                    </form>
+                </div>
+            </div>
+        </div></div>
     </section>
 
     <!-- HOW IT WORKS -->

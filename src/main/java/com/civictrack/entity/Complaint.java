@@ -24,6 +24,9 @@ import java.util.Objects;
 @Table(name = "complaints")
 public class Complaint extends BaseEntity {
 
+    @Column(name = "reference_number", nullable = false, unique = true, length = 20)
+    private String referenceNumber;
+
     @Column(name = "title", nullable = false, length = 150)
     private String title;
 
@@ -65,6 +68,7 @@ public class Complaint extends BaseEntity {
     }
 
     public Complaint(String title, String description, String location, Category category, User citizen) {
+        this.referenceNumber = ReferenceNumbers.generate();
         this.title = requireText(title, "Title");
         this.description = requireText(description, "Description");
         this.location = requireText(location, "Location");
@@ -127,6 +131,10 @@ public class Complaint extends BaseEntity {
     }
 
     // ---- getters ----
+
+    public String getReferenceNumber() {
+        return referenceNumber;
+    }
 
     public String getTitle() {
         return title;

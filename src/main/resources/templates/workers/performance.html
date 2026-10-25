@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Worker performance')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main id="main-content" class="container py-4">
+    <h1 class="h3 mb-1">Worker performance</h1>
+    <p class="text-muted">Workload and results of every field worker, calculated from assignments, status history and citizen feedback.</p>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="card card-body text-center py-5" th:if="${#lists.isEmpty(stats)}">
+        <p class="mb-0 fs-5">There are no field workers yet.</p>
+    </div>
+
+    <div class="card shadow-sm" th:unless="${#lists.isEmpty(stats)}">
+        <table class="table table-stack align-middle mb-0">
+            <thead class="table-light">
+            <tr><th>Worker</th><th>Account</th><th>Open jobs</th><th>Overdue</th><th>Completed</th><th>Avg. time to complete</th><th>Citizen rating</th></tr>
+            </thead>
+            <tbody>
+            <tr th:each="s : ${stats}">
+                <td data-label="Worker">
+                    <div class="fw-semibold" th:text="${s.worker.fullName}">Name</div>
+                    <div class="small text-muted" th:text="${s.worker.email}">email</div>
+                </td>
+                <td data-label="Account"><span class="badge" th:classappend="${s.worker.enabled} ? 'text-bg-success' : 'text-bg-secondary'"
+                          th:text="${s.worker.enabled} ? 'Active' : 'Disabled'">Active</span></td>
+                <td data-label="Open jobs" th:text="${s.openJobs}">0</td>
+                <td data-label="Overdue"><span class="badge text-bg-danger" th:if="${s.overdueJobs > 0}" th:text="${s.overdueJobs}">0</span>
+                    <span th:unless="${s.overdueJobs > 0}">0</span></td>
+                <td data-label="Completed" th:text="${s.completedJobs}">0</td>
+                <td data-label="Avg. time" th:text="${s.averageTimeDisplay}">-</td>
+                <td data-label="Rating">
+                    <span th:text="${s.averageRatingDisplay}">-</span>
+                    <span class="small text-muted" th:if="${s.ratingCount > 0}" th:text="'(' + ${s.ratingCount} + ')'">(0)</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+    <p class="small text-muted mt-3">Time to complete is measured from the latest assignment to the moment the worker marked the job as completed.
+        Ratings come from the feedback citizens leave on complaints the worker completed.</p>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

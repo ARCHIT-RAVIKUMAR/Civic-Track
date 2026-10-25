@@ -19,10 +19,10 @@
           th:action="@{/authority/complaints/{id}/assign(id=${complaint.id})}" method="post"
           class="card card-body shadow-sm">
         <div class="mb-3">
-            <label for="workerId" class="form-label">Field worker</label>
+            <label for="workerId" class="form-label">Field worker <span class="text-muted small">(least busy first)</span></label>
             <select class="form-select" id="workerId" name="workerId" required>
                 <option value="">-- choose a worker --</option>
-                <option th:each="w : ${workers}" th:value="${w.id}" th:text="${w.fullName} + ' (' + ${w.email} + ')'">Worker</option>
+                <option th:each="w : ${workers}" th:value="${w.id}" th:text="${w.fullName} + ' (' + ${w.email} + ') - ' + ${openJobs.get(w.id) ?: 0} + ' open job(s)'">Worker</option>
             </select>
         </div>
         <div class="mb-3">

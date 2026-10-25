@@ -133,4 +133,30 @@ class ComplaintRepositoryTest {
         assertEquals("Pothole one", page.getContent().get(0).getTitle());
         assertEquals(1L, complaintRepository.count(ComplaintSpecs.withFilter(filter)));
     }
+
+    @Test
+    void complaintCanBeFoundByReferenceNumberAndSearchedByIt() {
+        Complaint any = complaintRepository.findByCitizenOrderByCreatedAtDesc(citizen).get(0);
+        String reference = any.getReferenceNumber();
+
+        assertEquals(any.getId(), complaintRepository.findByReferenceNumber(reference).orElseThrow().getId());
+
+        ComplaintFilter filter = new ComplaintFilter();
+        filter.setQ(reference.toLowerCase());
+        var page = complaintRepository.findAll(ComplaintSpecs.withFilter(filter), PageRequest.of(0, 10));
+        assertEquals(1, page.getTotalElements());
+    }
+
+    @Test
+    void mapQueryReturnsOnlyComplaintsWithAPin() {
+        Complaint pinned = complaintRepository.findByCitizenOrderByCreatedAtDesc(citizen).get(0);
+        pinned.locate(9.93, 76.26);
+        complaintRepository.save(pinned);
+
+        var found = complaintRepository.findAll(
+                ComplaintSpecs.withFilter(new ComplaintFilter()).and(ComplaintSpecs.withCoordinates()));
+
+        assertEquals(1, found.size());
+        assertEquals(pinned.getId(), found.get(0).getId());
+    }
 }

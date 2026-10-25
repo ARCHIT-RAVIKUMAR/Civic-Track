@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:replace="~{fragments/layout :: head('Announcements')}"></head>
+<body>
+<nav th:replace="~{fragments/layout :: navbar}"></nav>
+<main id="main-content" class="container py-4">
+    <h1 class="h3 mb-1">Announcements</h1>
+    <p class="text-muted">Notices shown at the top of the pages (for example planned water cuts or office closures).</p>
+    <div th:replace="~{fragments/layout :: flash}"></div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <form th:action="@{/admin/announcements}" th:object="${announcementForm}" method="post"
+                  class="card card-body shadow-sm" novalidate>
+                <h2 class="h6">New announcement</h2>
+                <div class="mb-3">
+                    <label for="title" class="form-label">Title</label>
+                    <input type="text" class="form-control" id="title" th:field="*{title}" maxlength="150"
+                           th:classappend="${#fields.hasErrors('title')} ? 'is-invalid'">
+                    <div class="invalid-feedback" th:errors="*{title}"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="message" class="form-label">Message</label>
+                    <textarea class="form-control" id="message" rows="3" th:field="*{message}" maxlength="1000"
+                              th:classappend="${#fields.hasErrors('message')} ? 'is-invalid'"></textarea>
+                    <div class="invalid-feedback" th:errors="*{message}"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="severity" class="form-label">Type</label>
+                    <select class="form-select" id="severity" th:field="*{severity}">
+                        <option th:each="s : ${severities}" th:value="${s.name()}" th:text="${s.label}">Type</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="expiresOn" class="form-label">Show until (optional)</label>
+                    <input type="date" class="form-control" id="expiresOn" th:field="*{expiresOn}"
+                           th:classappend="${#fields.hasErrors('expiresOn')} ? 'is-invalid'">
+                    <div class="invalid-feedback" th:errors="*{expiresOn}"></div>
+                    <div class="form-text">Leave empty to keep it until you switch it off.</div>
+                </div>
+                <button type="submit" class="btn btn-primary">Publish</button>
+            </form>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card card-body text-center py-5" th:if="${#lists.isEmpty(announcementList)}">
+                <p class="mb-0 fs-5">No announcements yet.</p>
+            </div>
+            <div class="card shadow-sm" th:unless="${#lists.isEmpty(announcementList)}">
+                <table class="table table-stack align-middle mb-0">
+                    <thead class="table-light"><tr><th>Announcement</th><th>Type</th><th>Shown until</th><th>Status</th><th></th></tr></thead>
+                    <tbody>
+                    <tr th:each="a : ${announcementList}">
+                        <td data-label="Announcement">
+                            <div class="fw-semibold" th:text="${a.title}">Title</div>
+                            <div class="small text-muted" th:text="${a.message}">Message</div>
+                        </td>
+                        <td data-label="Type"><span class="badge" th:classappend="'text-bg-' + ${a.severity.alertClass}"
+                                  th:text="${a.severity.label}">Type</span></td>
+                        <td data-label="Until" th:text="${a.expiresDisplay}">-</td>
+                        <td data-label="Status">
+                            <span class="badge text-bg-secondary" th:if="${a.expired}">Expired</span>
+                            <span class="badge" th:unless="${a.expired}" th:classappend="${a.active} ? 'text-bg-success' : 'text-bg-secondary'"
+                                  th:text="${a.active} ? 'Live' : 'Switched off'">Live</span>
+                        </td>
+                        <td data-label="" class="text-end">
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown"
+                                        aria-expanded="false" th:attr="aria-label=${'Actions for ' + a.title}">
+                                    <i class="bi bi-three-dots-vertical"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><form th:action="@{/admin/announcements/{id}/toggle(id=${a.id})}" method="post" class="m-0">
+                                        <button type="submit" class="dropdown-item">
+                                            <i class="bi bi-power me-2"></i><span th:text="${a.active} ? 'Switch off' : 'Switch on'">Switch off</span>
+                                        </button></form></li>
+                                    <li><form th:action="@{/admin/announcements/{id}/delete(id=${a.id})}" method="post" class="m-0"
+                                              onsubmit="return confirm('Delete this announcement?');">
+                                        <button type="submit" class="dropdown-item text-danger"><i class="bi bi-trash me-2"></i>Delete</button>
+                                    </form></li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

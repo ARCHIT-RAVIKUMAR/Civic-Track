@@ -26,11 +26,14 @@ public class SecurityConfig {
         http
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/", "/login", "/register", "/error", "/access-denied",
+                                 "/track", "/help", "/health",
+                                 "/manifest.webmanifest", "/sw.js", "/offline.html", "/icons/**",
                                  "/css/**", "/js/**", "/images/**").permitAll()
                 .requestMatchers("/citizen/**").hasRole("CITIZEN")
                 .requestMatchers("/authority/**").hasRole("AUTHORITY")
                 .requestMatchers("/worker/**").hasRole("FIELD_WORKER")
                 .requestMatchers("/admin/**").hasRole("ADMIN")
+                .requestMatchers("/workers/**").hasAnyRole("AUTHORITY", "ADMIN")
                 .anyRequest().authenticated())
             .formLogin(form -> form
                 .loginPage("/login")

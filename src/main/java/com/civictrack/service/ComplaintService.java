@@ -32,6 +32,9 @@ public interface ComplaintService {
     /** A citizen cancels their own complaint before it is assigned. */
     void withdraw(UUID id, User actor);
 
+    /** Public look-up by reference number. Empty when the number is malformed or unknown. */
+    Optional<TrackingInfo> track(String reference);
+
     // any role (access is checked inside)
     Complaint getForViewer(UUID complaintId, User viewer);
 
@@ -45,6 +48,9 @@ public interface ComplaintService {
     Page<Complaint> search(ComplaintFilter filter, int page, int size, User actor);
 
     String exportCsv(ComplaintFilter filter, User actor);
+
+    /** Complaints that have a map pin and match the filter (at most 1000, newest first). */
+    List<Complaint> findForMap(ComplaintFilter filter, User actor);
 
     void startReview(UUID id, User actor);
 

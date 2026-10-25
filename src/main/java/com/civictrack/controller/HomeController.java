@@ -2,12 +2,16 @@ package com.civictrack.controller;
 
 import com.civictrack.enums.ComplaintStatus;
 import com.civictrack.service.ComplaintService;
+import com.civictrack.service.TrackingInfo;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.util.Map;
+import java.util.Optional;
 
 @Controller
 public class HomeController {
@@ -30,6 +34,30 @@ public class HomeController {
         model.addAttribute("totalResolved", resolved);
         model.addAttribute("totalInProgress", inProgress);
         return "index";
+    }
+
+    /** Public: anyone can look up the status of a complaint by its reference number. */
+    @GetMapping("/track")
+    public String track(@RequestParam(required = false) String ref, Model model) {
+        if (ref != null && !ref.isBlank()) {
+            Optional<TrackingInfo> info = complaintService.track(ref);
+            model.addAttribute("ref", ref.trim());
+            model.addAttribute("searched", true);
+            model.addAttribute("info", info.orElse(null));
+        }
+        return "track";
+    }
+
+    @GetMapping("/help")
+    public String help() {
+        return "help";
+    }
+
+    /** Simple health check for the hosting platform. */
+    @GetMapping("/health")
+    @ResponseBody
+    public String health() {
+        return "OK";
     }
 
     /** Sends each logged-in user to the dashboard that matches their role. */

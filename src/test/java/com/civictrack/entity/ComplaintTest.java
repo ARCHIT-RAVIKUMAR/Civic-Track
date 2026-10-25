@@ -109,4 +109,10 @@ class ComplaintTest {
         complaint.reject("Duplicate");
         assertFalse(complaint.isOverdue());
     }
+
+    @Test
+    void everyNewComplaintGetsAReferenceNumber() {
+        assertTrue(complaint.getReferenceNumber().matches("CT-[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}"),
+                complaint.getReferenceNumber());
+    }
 }

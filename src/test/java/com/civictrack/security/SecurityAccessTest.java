@@ -1,10 +1,15 @@
 package com.civictrack.security;
 
+import com.civictrack.entity.Announcement;
 import com.civictrack.entity.Category;
+import com.civictrack.entity.Complaint;
 import com.civictrack.entity.User;
 import com.civictrack.enums.ActivityType;
 import com.civictrack.repository.ActivityLogRepository;
+import com.civictrack.enums.AnnouncementSeverity;
+import com.civictrack.repository.AnnouncementRepository;
 import com.civictrack.repository.CategoryRepository;
+import com.civictrack.repository.ComplaintRepository;
 import com.civictrack.enums.Role;
 import com.civictrack.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -41,6 +46,8 @@ class SecurityAccessTest {
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private ActivityLogRepository activityLogRepository;
     @Autowired private CategoryRepository categoryRepository;
+    @Autowired private ComplaintRepository complaintRepository;
+    @Autowired private AnnouncementRepository announcementRepository;
 
     @Test
     void publicPagesAreOpen() throws Exception {
@@ -446,5 +453,98 @@ class SecurityAccessTest {
                         .param("email", "existing@test.com"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/admin/users/" + target.getId() + "/edit"));
+    }
+
+    // ---------------------------------------------------------------- v9 features
+
+    @Test
+    void publicPagesAndAppFilesAreReachableWithoutLogin() throws Exception {
+        mockMvc.perform(get("/help")).andExpect(status().isOk());
+        mockMvc.perform(get("/track")).andExpect(status().isOk());
+        mockMvc.perform(get("/health")).andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string("OK"));
+        mockMvc.perform(get("/manifest.webmanifest")).andExpect(status().isOk());
+        mockMvc.perform(get("/sw.js")).andExpect(status().isOk());
+        mockMvc.perform(get("/offline.html")).andExpect(status().isOk());
+        mockMvc.perform(get("/icons/icon-192.png")).andExpect(status().isOk());
+    }
+
+    @Test
+    void publicTrackingShowsStatusButNothingPrivate() throws Exception {
+        User owner = userRepository.save(new User("Private Person", "private@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+        Category category = categoryRepository.save(new Category("Tracking category", null));
+        Complaint complaint = complaintRepository.save(new Complaint("Secret title words", "Secret description text here",
+                "Secret Street 5", category, owner));
+
+        mockMvc.perform(get("/track").param("ref", complaint.getReferenceNumber().toLowerCase()))
+                .andExpect(status().isOk())
+                .andExpect(view().name("track"))
+                .andExpect(model().attributeExists("info"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString(complaint.getReferenceNumber())))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Secret title words"))))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("Private Person"))));
+
+        mockMvc.perform(get("/track").param("ref", "CT-ZZZZ-ZZZZ"))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeDoesNotExist("info"));
+    }
+
+    @Test
+    void activeAnnouncementIsShownOnTheLandingPage() throws Exception {
+        announcementRepository.save(new Announcement("Water supply off in Ward 5", "Tomorrow 9 to 5.",
+                AnnouncementSeverity.WARNING, null, null));
+
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("Water supply off in Ward 5")));
+    }
+
+    @Test
+    @WithMockUser(username = "announcer@test.com", roles = "ADMIN")
+    void adminCanPublishAndSwitchOffAnnouncements() throws Exception {
+        userRepository.save(new User("Announcer", "announcer@test.com", passwordEncoder.encode("Passw0rd1"), Role.ADMIN));
+
+        mockMvc.perform(get("/admin/announcements")).andExpect(status().isOk())
+                .andExpect(view().name("admin/announcements"));
+
+        mockMvc.perform(post("/admin/announcements").with(csrf())
+                        .param("title", "Office closed")
+                        .param("message", "Closed on Monday.")
+                        .param("severity", "INFO"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin/announcements"));
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, announcementRepository.findAll().size());
+    }
+
+    @Test
+    @WithMockUser(roles = "CITIZEN")
+    void citizenCannotManageAnnouncementsOrSeeWorkerPerformance() throws Exception {
+        mockMvc.perform(get("/admin/announcements")).andExpect(status().isForbidden());
+        mockMvc.perform(get("/workers/performance")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(username = "boss2@test.com", roles = "AUTHORITY")
+    void authorityCanOpenWorkerPerformanceAndTheComplaintsMap() throws Exception {
+        userRepository.save(new User("Boss Two", "boss2@test.com", passwordEncoder.encode("Passw0rd1"), Role.AUTHORITY));
+        userRepository.save(new User("A Worker", "aworker@test.com", passwordEncoder.encode("Passw0rd1"), Role.FIELD_WORKER));
+
+        mockMvc.perform(get("/workers/performance")).andExpect(status().isOk())
+                .andExpect(view().name("workers/performance"));
+        mockMvc.perform(get("/authority/map")).andExpect(status().isOk())
+                .andExpect(view().name("authority/map"));
+    }
+
+    @Test
+    @WithMockUser(username = "adminperf@test.com", roles = "ADMIN")
+    void adminCanAlsoSeeWorkerPerformance() throws Exception {
+        userRepository.save(new User("Admin Perf", "adminperf@test.com", passwordEncoder.encode("Passw0rd1"), Role.ADMIN));
+
+        mockMvc.perform(get("/workers/performance")).andExpect(status().isOk());
     }
 }
