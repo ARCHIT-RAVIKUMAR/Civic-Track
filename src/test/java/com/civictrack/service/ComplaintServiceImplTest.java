@@ -18,7 +18,9 @@ import com.civictrack.repository.ComplaintCommentRepository;
 import com.civictrack.repository.ComplaintRepository;
 import com.civictrack.repository.StatusHistoryRepository;
 import com.civictrack.service.impl.ComplaintServiceImpl;
+import com.civictrack.enums.Priority;
 import org.junit.jupiter.api.BeforeEach;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -34,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -449,5 +452,129 @@ class ComplaintServiceImplTest {
     @Test
     void onlyAuthoritiesCanUseTheMapQuery() {
         assertThrows(ForbiddenOperationException.class, () -> service.findForMap(new ComplaintFilter(), citizen));
+    }
+
+    // ---------------------------------------------------------------- who gets told what
+
+    private void toInProgress() {
+        complaint.changeStatus(ComplaintStatus.UNDER_REVIEW);
+        complaint.changeStatus(ComplaintStatus.ASSIGNED);
+        complaint.changeStatus(ComplaintStatus.IN_PROGRESS);
+    }
+
+    @Test
+    void reassignmentSendsInstructionsToTheNewWorkerAndTellsTheOldOne() {
+        User newWorker = userWithId("New Worker", "new@example.com", Role.FIELD_WORKER);
+        complaint.changeStatus(ComplaintStatus.UNDER_REVIEW);
+        complaint.changeStatus(ComplaintStatus.ASSIGNED);
+        Assignment old = new Assignment(complaint, worker, authority, null);
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(userService.getById(newWorker.getId())).thenReturn(newWorker);
+        when(assignmentRepository.findByComplaintAndActiveTrue(complaint)).thenReturn(Optional.of(old));
+
+        service.assign(complaintId, newWorker.getId(), "Bring a ladder", authority);
+
+        ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+        verify(notificationService).notifyUser(eq(newWorker), anyString(), message.capture(), any());
+        assertTrue(message.getValue().contains("Bring a ladder"));
+        verify(notificationService).notifyUser(eq(worker), anyString(), anyString(), any());
+    }
+
+    @Test
+    void workerNoteTellsTheCitizenButOnlyAlertsOfficersWhenAsked() {
+        toInProgress();
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(assignmentRepository.existsByComplaintAndWorkerAndActiveTrue(complaint, worker)).thenReturn(true);
+        when(userService.findActiveByRole(Role.AUTHORITY)).thenReturn(List.of(authority));
+
+        service.addNote(complaintId, "Waiting for materials", false, worker);
+
+        verify(notificationService).notifyUser(eq(citizen), anyString(), anyString(), any());
+        verify(notificationService, never()).notifyUser(eq(authority), anyString(), anyString(), any());
+
+        service.addNote(complaintId, "The road is blocked", true, worker);
+
+        verify(notificationService).notifyUser(eq(authority), anyString(), anyString(), any());
+    }
+
+    @Test
+    void priorityChangeIsSentToTheAssignedWorker() {
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(assignmentRepository.findByComplaintAndActiveTrue(complaint))
+                .thenReturn(Optional.of(new Assignment(complaint, worker, authority, null)));
+
+        service.changePriority(complaintId, Priority.URGENT, authority);
+
+        verify(notificationService).notifyUser(eq(worker), anyString(), anyString(), any());
+    }
+
+    @Test
+    void closingTellsBothTheCitizenAndTheWorker() {
+        toInProgress();
+        complaint.changeStatus(ComplaintStatus.RESOLVED);
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(assignmentRepository.findByComplaintAndActiveTrue(complaint))
+                .thenReturn(Optional.of(new Assignment(complaint, worker, authority, null)));
+
+        service.close(complaintId, "Looks good", authority);
+
+        verify(notificationService).notifyUser(eq(citizen), anyString(), anyString(), any());
+        verify(notificationService).notifyUser(eq(worker), anyString(), anyString(), any());
+    }
+
+    @Test
+    void rejectionReasonReachesTheCitizen() {
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+
+        service.reject(complaintId, "Duplicate of an earlier report", authority);
+
+        ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+        verify(notificationService).notifyUser(eq(citizen), anyString(), message.capture(), any());
+        assertTrue(message.getValue().contains("Duplicate of an earlier report"));
+    }
+
+    @Test
+    void reopeningTellsTheWorkerWhoWasReleased() {
+        closeComplaint();
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(historyRepository.findByComplaintOrderByCreatedAtAsc(complaint))
+                .thenReturn(List.of(closedEntry(LocalDateTime.now().minusDays(1))));
+        when(assignmentRepository.findByComplaintAndActiveTrue(complaint))
+                .thenReturn(Optional.of(new Assignment(complaint, worker, authority, null)));
+        when(userService.findActiveByRole(Role.AUTHORITY)).thenReturn(List.of(authority));
+
+        service.reopen(complaintId, "It broke again", citizen);
+
+        verify(notificationService).notifyUser(eq(worker), anyString(), anyString(), any());
+        verify(notificationService).notifyUser(eq(authority), anyString(), anyString(), any());
+    }
+
+    @Test
+    void workerCommentGoesToTheCitizenAndOfficersButNotBackToTheWorker() {
+        toInProgress();
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(assignmentRepository.existsByComplaintAndWorkerAndActiveTrue(complaint, worker)).thenReturn(true);
+        when(assignmentRepository.findByComplaintAndActiveTrue(complaint))
+                .thenReturn(Optional.of(new Assignment(complaint, worker, authority, null)));
+        when(userService.findActiveByRole(Role.AUTHORITY)).thenReturn(List.of(authority));
+
+        service.addComment(complaintId, "Arriving tomorrow", worker);
+
+        verify(notificationService).notifyUser(eq(citizen), anyString(), anyString(), any());
+        verify(notificationService).notifyUser(eq(authority), anyString(), anyString(), any());
+        verify(notificationService, never()).notifyUser(eq(worker), anyString(), anyString(), any());
+    }
+
+    @Test
+    void authorityCommentReachesTheCitizenAndTheAssignedWorker() {
+        toInProgress();
+        when(complaintRepository.findById(complaintId)).thenReturn(Optional.of(complaint));
+        when(assignmentRepository.findByComplaintAndActiveTrue(complaint))
+                .thenReturn(Optional.of(new Assignment(complaint, worker, authority, null)));
+
+        service.addComment(complaintId, "Please send a photo when done", authority);
+
+        verify(notificationService).notifyUser(eq(citizen), anyString(), anyString(), any());
+        verify(notificationService).notifyUser(eq(worker), anyString(), anyString(), any());
     }
 }

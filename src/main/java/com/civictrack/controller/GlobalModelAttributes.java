@@ -4,6 +4,7 @@ import com.civictrack.entity.Announcement;
 import com.civictrack.entity.Notification;
 import com.civictrack.service.AnnouncementService;
 import com.civictrack.service.InboxService;
+import com.civictrack.service.UserService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -16,10 +17,25 @@ public class GlobalModelAttributes {
 
     private final InboxService inboxService;
     private final AnnouncementService announcementService;
+    private final UserService userService;
 
-    public GlobalModelAttributes(InboxService inboxService, AnnouncementService announcementService) {
+    public GlobalModelAttributes(InboxService inboxService, AnnouncementService announcementService,
+                                 UserService userService) {
         this.inboxService = inboxService;
         this.announcementService = announcementService;
+        this.userService = userService;
+    }
+
+    @ModelAttribute("currentUserName")
+    public String currentUserName(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+        try {
+            return userService.getByEmail(authentication.getName()).getFullName();
+        } catch (RuntimeException ex) {
+            return null; // the navbar falls back to the e-mail address
+        }
     }
 
     @ModelAttribute("announcements")

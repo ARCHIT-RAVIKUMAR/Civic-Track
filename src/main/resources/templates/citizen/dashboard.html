@@ -6,7 +6,7 @@
 <main id="main-content" class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h3 mb-0">My complaints</h1>
-        <a class="btn btn-primary" th:href="@{/citizen/complaints/new}">Report a new issue</a>
+        <div class="d-flex gap-2"><button type="button" class="btn btn-outline-secondary btn-sm" data-refresh><i class="bi bi-arrow-clockwise"></i> Refresh</button><a class="btn btn-primary" th:href="@{/citizen/complaints/new}">Report a new issue</a></div>
     </div>
     <div th:replace="~{fragments/layout :: flash}"></div>
 

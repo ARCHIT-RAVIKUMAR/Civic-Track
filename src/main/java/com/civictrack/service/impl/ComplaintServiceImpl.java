@@ -279,6 +279,9 @@ public class ComplaintServiceImpl implements ComplaintService {
         complaintRepository.save(complaint);
         recordHistory(complaint, complaint.getStatus(), complaint.getStatus(), actor,
                 "Priority set to " + priority.getLabel());
+        assignmentRepository.findByComplaintAndActiveTrue(complaint).ifPresent(a ->
+                notifyUser(a.getWorker(), "Priority changed: " + complaint.getTitle(),
+                        "New priority: " + priority.getLabel(), complaint));
     }
 
     @Override
@@ -296,7 +299,8 @@ public class ComplaintServiceImpl implements ComplaintService {
         }
 
         // Deactivate the previous assignment first (only one active assignment is allowed per complaint)
-        assignmentRepository.findByComplaintAndActiveTrue(complaint).ifPresent(old -> {
+        Optional<Assignment> previous = assignmentRepository.findByComplaintAndActiveTrue(complaint);
+        previous.ifPresent(old -> {
             old.deactivate();
             assignmentRepository.saveAndFlush(old);
         });
@@ -307,8 +311,13 @@ public class ComplaintServiceImpl implements ComplaintService {
         } else {
             recordHistory(complaint, current, current, actor, "Re-assigned to " + worker.getFullName());
         }
+        String instructions = (notes == null || notes.isBlank()) ? "" : " Instructions: " + notes.trim();
         notifyUser(worker, "New assignment: " + complaint.getTitle(),
-                "A complaint at " + complaint.getLocation() + " has been assigned to you.", complaint);
+                "A complaint at " + complaint.getLocation() + " has been assigned to you." + instructions, complaint);
+        previous.map(Assignment::getWorker)
+                .filter(oldWorker -> !oldWorker.equals(worker))
+                .ifPresent(oldWorker -> notifyUser(oldWorker, "No longer assigned: " + complaint.getTitle(),
+                        "This complaint was re-assigned to another worker.", complaint));
     }
 
     @Override
@@ -316,6 +325,9 @@ public class ComplaintServiceImpl implements ComplaintService {
         requireRole(actor, Role.AUTHORITY);
         Complaint complaint = findComplaint(id);
         transition(complaint, ComplaintStatus.CLOSED, actor, blankToDefault(notes, "Resolution verified and complaint closed"));
+        assignmentRepository.findByComplaintAndActiveTrue(complaint).ifPresent(a ->
+                notifyUser(a.getWorker(), "Job verified and closed: " + complaint.getTitle(),
+                        "The authority verified your work. Thank you.", complaint));
     }
 
     @Override
@@ -346,7 +358,7 @@ public class ComplaintServiceImpl implements ComplaintService {
     }
 
     @Override
-    public void addNote(UUID id, String note, User actor) {
+    public void addNote(UUID id, String note, boolean alertAuthority, User actor) {
         Complaint complaint = findAssignedComplaint(id, actor);
         if (note == null || note.isBlank()) {
             throw new BusinessRuleException("Please write a progress note.");
@@ -355,7 +367,14 @@ public class ComplaintServiceImpl implements ComplaintService {
         if (status != ComplaintStatus.ASSIGNED && status != ComplaintStatus.IN_PROGRESS) {
             throw new BusinessRuleException("Notes can only be added while the work is Assigned or In Progress.");
         }
-        recordHistory(complaint, status, status, actor, note.trim());
+        String text = note.trim();
+        recordHistory(complaint, status, status, actor, text);
+        notifyUser(complaint.getCitizen(), "Progress update on your complaint: " + complaint.getTitle(),
+                actor.getFullName() + ": " + text, complaint);
+        if (alertAuthority) {
+            notifyRole(Role.AUTHORITY, "Worker needs attention: " + complaint.getTitle(),
+                    actor.getFullName() + ": " + text, complaint);
+        }
     }
 
     @Override
@@ -391,11 +410,15 @@ public class ComplaintServiceImpl implements ComplaintService {
             throw new BusinessRuleException("The explanation is too long (maximum 500 characters).");
         }
         // the earlier worker is released; the authority assigns the complaint again
-        assignmentRepository.findByComplaintAndActiveTrue(complaint).ifPresent(a -> {
+        Optional<Assignment> previous = assignmentRepository.findByComplaintAndActiveTrue(complaint);
+        previous.ifPresent(a -> {
             a.deactivate();
             assignmentRepository.save(a);
         });
         transition(complaint, ComplaintStatus.UNDER_REVIEW, actor, "Reopened by the citizen: " + text);
+        previous.map(Assignment::getWorker).ifPresent(worker ->
+                notifyUser(worker, "Complaint reopened: " + complaint.getTitle(),
+                        "The citizen reopened this complaint. You will be told if it is assigned to you again.", complaint));
         notifyRole(Role.AUTHORITY, "Complaint reopened: " + complaint.getTitle(), text, complaint);
     }
 
@@ -556,9 +579,13 @@ public class ComplaintServiceImpl implements ComplaintService {
     private void afterTransition(Complaint complaint, ComplaintStatus old, User actor, String notes) {
         complaintRepository.save(complaint);
         recordHistory(complaint, old, complaint.getStatus(), actor, notes);
-        notifyUser(complaint.getCitizen(),
-                "Update on your complaint: " + complaint.getTitle(),
-                "Your complaint status is now: " + complaint.getStatus().getLabel() + ".", complaint);
+        String message = "Your complaint status is now: " + complaint.getStatus().getLabel() + ".";
+        if (complaint.getStatus() == ComplaintStatus.REJECTED && complaint.getRejectionReason() != null) {
+            message += " Reason: " + complaint.getRejectionReason();
+        } else if (complaint.getStatus() == ComplaintStatus.CLOSED && notes != null && !notes.isBlank()) {
+            message += " " + notes.trim();
+        }
+        notifyUser(complaint.getCitizen(), "Update on your complaint: " + complaint.getTitle(), message, complaint);
     }
 
     private void recordHistory(Complaint complaint, ComplaintStatus old, ComplaintStatus next,

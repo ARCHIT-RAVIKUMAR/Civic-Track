@@ -1,6 +1,7 @@
 package com.civictrack.controller;
 
 import com.civictrack.enums.ComplaintStatus;
+import com.civictrack.security.TrackRateLimiter;
 import com.civictrack.service.ComplaintService;
 import com.civictrack.service.TrackingInfo;
 import org.springframework.security.core.Authentication;
@@ -17,9 +18,11 @@ import java.util.Optional;
 public class HomeController {
 
     private final ComplaintService complaintService;
+    private final TrackRateLimiter trackRateLimiter;
 
-    public HomeController(ComplaintService complaintService) {
+    public HomeController(ComplaintService complaintService, TrackRateLimiter trackRateLimiter) {
         this.complaintService = complaintService;
+        this.trackRateLimiter = trackRateLimiter;
     }
 
     @GetMapping("/")
@@ -38,8 +41,16 @@ public class HomeController {
 
     /** Public: anyone can look up the status of a complaint by its reference number. */
     @GetMapping("/track")
-    public String track(@RequestParam(required = false) String ref, Model model) {
+    public String track(@RequestParam(required = false) String ref, jakarta.servlet.http.HttpServletRequest request,
+                        jakarta.servlet.http.HttpServletResponse response, Model model) {
         if (ref != null && !ref.isBlank()) {
+            if (!trackRateLimiter.tryAcquire(request.getRemoteAddr())) {
+                response.setStatus(429);
+                model.addAttribute("ref", ref.trim());
+                model.addAttribute("searched", true);
+                model.addAttribute("rateLimited", true);
+                return "track";
+            }
             Optional<TrackingInfo> info = complaintService.track(ref);
             model.addAttribute("ref", ref.trim());
             model.addAttribute("searched", true);

@@ -36,6 +36,10 @@
                     <p class="mb-2" th:if="${assignment != null}">
                         <strong>Assigned to:</strong> <span th:text="${assignment.worker.fullName}">Worker</span>
                     </p>
+                    <div class="alert alert-secondary py-2" th:if="${assignment != null and assignment.notes != null and viewerRole != 'CITIZEN'}">
+                        <i class="bi bi-clipboard-check"></i> <strong>Instructions from the authority:</strong>
+                        <span th:text="${assignment.notes}" style="white-space: pre-line;">Instructions</span>
+                    </div>
                     <div class="alert alert-danger" th:if="${complaint.rejectionReason != null}">
                         <strong>Rejected:</strong> <span th:text="${complaint.rejectionReason}">Reason</span>
                     </div>
@@ -147,6 +151,11 @@
                           th:action="@{/worker/complaints/{id}/note(id=${complaint.id})}" method="post" class="mb-3">
                         <label for="note" class="form-label small mb-0">Progress note</label>
                         <textarea class="form-control mb-2" id="note" name="note" rows="2" maxlength="900" required></textarea>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="alertAuthority" name="alert" value="true">
+                            <label class="form-check-label small" for="alertAuthority">
+                                I need the authority's attention (problem, delay, missing access ...)</label>
+                        </div>
                         <button class="btn btn-outline-primary" type="submit">Add note</button>
                     </form>
 

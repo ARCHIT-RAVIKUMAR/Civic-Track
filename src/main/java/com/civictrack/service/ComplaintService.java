@@ -69,7 +69,8 @@ public interface ComplaintService {
 
     void startWork(UUID id, User actor);
 
-    void addNote(UUID id, String note, User actor);
+    /** Progress note by the assigned worker. The citizen is told; officers only when alertAuthority is true. */
+    void addNote(UUID id, String note, boolean alertAuthority, User actor);
 
     void markResolved(UUID id, String note, User actor);
 

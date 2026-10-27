@@ -74,8 +74,10 @@ public class WorkerController {
 
     @PostMapping("/complaints/{id}/note")
     public String note(@PathVariable UUID id, @RequestParam String note,
+                       @RequestParam(defaultValue = "false") boolean alert,
                        Authentication auth, RedirectAttributes redirect) {
-        return run(id, redirect, "Progress note added.", auth, w -> complaintService.addNote(id, note, w));
+        return run(id, redirect, alert ? "Note added and the authority has been alerted." : "Progress note added.",
+                auth, w -> complaintService.addNote(id, note, alert, w));
     }
 
     @PostMapping("/complaints/{id}/resolve")

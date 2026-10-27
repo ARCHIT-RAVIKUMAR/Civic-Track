@@ -91,3 +91,25 @@ footer.site-footer a { color: #93c5fd; text-decoration: none; }
 [data-bs-theme="dark"] .cta { background: #0a2f6e; }
 [data-bs-theme="dark"] .site-footer { background: #0b0f19; }
 #themeToggle { color: rgba(255, 255, 255, .85); padding-left: .5rem; padding-right: .5rem; }
+
+/* ---- always-visible icons in the top bar (theme + notifications) ---- */
+.navbar-quick .nav-link, .navbar-quick .btn-link { color: rgba(255, 255, 255, .92); }
+.navbar-quick .nav-link:hover, .navbar-quick .btn-link:hover { color: #fff; }
+.navbar-quick .nav-link .badge { position: absolute; top: 0; right: -2px; font-size: .62rem; padding: .2em .45em; }
+.navbar-quick .bi { font-size: 1.15rem; }
+
+/* ---- bottom navigation bar on phones and tablets ---- */
+footer.site-footer .bottom-nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 990; display: flex;
+  justify-content: space-around; background: var(--bs-body-bg); border-top: 1px solid var(--bs-border-color);
+  padding: .35rem .25rem calc(.35rem + env(safe-area-inset-bottom)); box-shadow: 0 -2px 8px rgba(0, 0, 0, .08); }
+footer.site-footer .bottom-nav a { flex: 1; text-align: center; color: var(--bs-secondary-color); font-size: .68rem;
+  text-decoration: none; position: relative; padding: .1rem 0; line-height: 1.2; }
+footer.site-footer .bottom-nav a i { display: block; font-size: 1.35rem; line-height: 1.2; }
+footer.site-footer .bottom-nav a.active { color: var(--ct-primary); font-weight: 600; }
+footer.site-footer .bottom-nav .badge { position: absolute; top: -2px; left: calc(50% + 6px); font-size: .6rem; }
+@media (max-width: 991.98px) { body.has-bottom-nav { padding-bottom: 4.5rem; } }
+
+/* ---- refresh button spinner and current-page highlight ---- */
+@keyframes ct-spin { to { transform: rotate(360deg); } }
+.ct-spin { display: inline-block; animation: ct-spin .8s linear infinite; }
+.navbar .nav-link.active { font-weight: 600; text-decoration: underline; text-underline-offset: 6px; }

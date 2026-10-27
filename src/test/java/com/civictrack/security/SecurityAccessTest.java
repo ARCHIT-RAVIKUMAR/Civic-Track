@@ -547,4 +547,53 @@ class SecurityAccessTest {
 
         mockMvc.perform(get("/workers/performance")).andExpect(status().isOk());
     }
+
+    @Test
+    @WithMockUser(username = "phone@test.com", roles = "CITIZEN")
+    void bottomNavigationBarIsShownOnlyToLoggedInUsers() throws Exception {
+        userRepository.save(new User("Phone User", "phone@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(get("/citizen/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("aria-label=\"Quick navigation\"")));
+    }
+
+    @Test
+    void anonymousVisitorsDoNotGetTheBottomNavigationBar() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("aria-label=\"Quick navigation\""))));
+    }
+
+    @Test
+    @WithMockUser(username = "poller@test.com", roles = "CITIZEN")
+    void unreadCountEndpointReturnsJsonForTheLoggedInUser() throws Exception {
+        userRepository.save(new User("Poller", "poller@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(get("/notifications/unread-count"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .contentTypeCompatibleWith("application/json"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath("$.count").value(0));
+    }
+
+    @Test
+    void unreadCountEndpointNeedsLogin() throws Exception {
+        mockMvc.perform(get("/notifications/unread-count")).andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    @WithMockUser(username = "namer@test.com", roles = "CITIZEN")
+    void navbarShowsTheFullNameAndARefreshButtonIsOnTheDashboard() throws Exception {
+        userRepository.save(new User("Asha Kumar Full Name", "namer@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(get("/citizen/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("Asha Kumar Full Name")))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("data-refresh")));
+    }
 }

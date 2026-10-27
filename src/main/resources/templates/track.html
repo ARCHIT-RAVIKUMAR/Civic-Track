@@ -18,7 +18,11 @@
         </div>
     </form>
 
-    <div class="alert alert-warning" th:if="${searched != null and info == null}">
+    <div class="alert alert-danger" th:if="${rateLimited != null}">
+        <i class="bi bi-hourglass-split"></i> Too many look-ups from your connection. Please wait a few minutes and try again.
+    </div>
+
+    <div class="alert alert-warning" th:if="${searched != null and info == null and rateLimited == null}">
         <i class="bi bi-exclamation-triangle"></i> No complaint was found for that reference number. Please check it and try again.
     </div>
 
