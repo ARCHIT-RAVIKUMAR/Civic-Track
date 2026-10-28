@@ -21,6 +21,7 @@ import static org.mockito.Mockito.when;
 class ChartDataHelperTest {
 
     @Mock private ComplaintService complaintService;
+    @Mock private com.civictrack.service.SatisfactionService satisfactionService;
 
     @Test
     void rejectedAndWithdrawnAreShownTogetherAndTotalsAreCorrect() {
@@ -37,7 +38,7 @@ class ChartDataHelperTest {
         when(complaintService.countByCategory()).thenReturn(byCategory);
 
         Model model = new ExtendedModelMap();
-        new ChartDataHelper(complaintService).addTo(model);
+        new ChartDataHelper(complaintService, satisfactionService).addTo(model);
 
         List<?> labels = (List<?>) model.getAttribute("statusLabels");
         List<?> values = (List<?>) model.getAttribute("statusValues");
@@ -54,7 +55,7 @@ class ChartDataHelperTest {
         when(complaintService.countByCategory()).thenReturn(new LinkedHashMap<>());
 
         Model model = new ExtendedModelMap();
-        new ChartDataHelper(complaintService).addTo(model);
+        new ChartDataHelper(complaintService, satisfactionService).addTo(model);
 
         assertEquals(false, model.getAttribute("chartHasData"));
     }

@@ -121,4 +121,26 @@ class WorkerStatsServiceImplTest {
         assertThrows(ForbiddenOperationException.class, () -> service.stats(citizen));
         assertThrows(ForbiddenOperationException.class, () -> service.stats(worker));
     }
+
+    @Test
+    void myStatsIncludesWhatCitizensSaidAndIsOnlyForWorkers() {
+        Complaint done = complaint();
+        LocalDateTime nine = LocalDateTime.of(2026, 1, 1, 9, 0);
+        StatusHistory resolved = at(new StatusHistory(done, ComplaintStatus.IN_PROGRESS, ComplaintStatus.RESOLVED, worker, null), nine.plusHours(2));
+        when(assignmentRepository.findComplaintsForWorker(worker)).thenReturn(List.of());
+        when(historyRepository.findTop500ByChangedByAndNewStatusOrderByCreatedAtDesc(worker, ComplaintStatus.RESOLVED))
+                .thenReturn(List.of(resolved));
+        when(historyRepository.findByComplaintOrderByCreatedAtAsc(done)).thenReturn(List.of(resolved));
+        when(feedbackRepository.findByComplaint(done))
+                .thenReturn(Optional.of(new Feedback(done, citizen, 5, "Quick and tidy")));
+
+        WorkerStats mine = service.myStats(worker);
+
+        assertEquals(1, mine.getCompletedJobs());
+        assertEquals(1, mine.getRecentFeedback().size());
+        assertEquals("Quick and tidy", mine.getRecentFeedback().get(0).getComments());
+        assertEquals(done.getReferenceNumber(), mine.getRecentFeedback().get(0).getReferenceNumber());
+        assertThrows(ForbiddenOperationException.class, () -> service.myStats(authority));
+        assertThrows(ForbiddenOperationException.class, () -> service.myStats(citizen));
+    }
 }

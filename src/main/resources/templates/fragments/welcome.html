@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- First-login welcome guide. Shown once per account (until "Got it" is pressed). Needs: currentUser -->
+<div th:fragment="welcome">
+    <div class="modal fade" id="welcomeModal" tabindex="-1" aria-labelledby="welcomeTitle" aria-hidden="true"
+         data-bs-backdrop="static" data-bs-keyboard="false"
+         th:if="${currentUser != null and !currentUser.welcomeSeen}">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="welcomeTitle"><i class="bi bi-stars text-warning"></i>
+                        Welcome to CivicTrack, <span th:text="${currentUser.fullName}">Name</span>!</h2>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted" th:text="'You are signed in as: ' + ${currentUser.role.label} + '. Here is a quick tour.'">Role</p>
+
+                    <!-- CITIZEN -->
+                    <ol class="list-unstyled mb-0" th:if="${currentUser.role.name() == 'CITIZEN'}">
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-megaphone"></i></span>
+                            <div><strong>Report an issue</strong><div class="small text-muted">Choose <em>Report an Issue</em>, describe the problem, drop a pin on the map and add a photo.</div></div></li>
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-upc-scan"></i></span>
+                            <div><strong>Keep your reference number</strong><div class="small text-muted">Every complaint gets one (like CT-AB12-CD34). Anyone can track it on the <em>Track a complaint</em> page.</div></div></li>
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-bell"></i></span>
+                            <div><strong>Follow the progress</strong><div class="small text-muted">The bell tells you about every update. You can comment, withdraw before assignment, or reopen within 7 days of closing.</div></div></li>
+                        <li class="d-flex gap-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-star"></i></span>
+                            <div><strong>Rate the result</strong><div class="small text-muted">When work is done, leave feedback so the city can improve.</div></div></li>
+                    </ol>
+
+                    <!-- AUTHORITY -->
+                    <ol class="list-unstyled mb-0" th:if="${currentUser.role.name() == 'AUTHORITY'}">
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-list-check"></i></span>
+                            <div><strong>Review new complaints</strong><div class="small text-muted">Open a complaint, start the review, set its priority or reject it with a reason.</div></div></li>
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-person-gear"></i></span>
+                            <div><strong>Assign the work</strong><div class="small text-muted">Pick a field worker (least busy first) and add instructions - the worker is notified.</div></div></li>
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-map"></i></span>
+                            <div><strong>Watch the map and overdue work</strong><div class="small text-muted">The Map shows every pin by status; red marks overdue complaints.</div></div></li>
+                        <li class="d-flex gap-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-patch-check"></i></span>
+                            <div><strong>Verify and close</strong><div class="small text-muted">When a worker marks a job completed you are notified: verify it, close it, or send it back.</div></div></li>
+                    </ol>
+
+                    <!-- FIELD WORKER -->
+                    <ol class="list-unstyled mb-0" th:if="${currentUser.role.name() == 'FIELD_WORKER'}">
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-clipboard-check"></i></span>
+                            <div><strong>Your assignments</strong><div class="small text-muted">New jobs appear in <em>My Assignments</em> and the bell, with the authority's instructions.</div></div></li>
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-map"></i></span>
+                            <div><strong>Find the place</strong><div class="small text-muted">Use the Map view and the <em>Get directions</em> link on each complaint.</div></div></li>
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-pencil-square"></i></span>
+                            <div><strong>Update the work</strong><div class="small text-muted">Start work, add progress notes (tick "I need the authority's attention" for problems) and mark it completed.</div></div></li>
+                        <li class="d-flex gap-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-graph-up"></i></span>
+                            <div><strong>See your results</strong><div class="small text-muted"><em>My stats</em> shows your completed jobs, speed and what citizens said.</div></div></li>
+                    </ol>
+
+                    <!-- ADMIN -->
+                    <ol class="list-unstyled mb-0" th:if="${currentUser.role.name() == 'ADMIN'}">
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-people"></i></span>
+                            <div><strong>Manage people</strong><div class="small text-muted">In <em>Users</em> create staff accounts, edit roles and emails, reset passwords and see each person's activity.</div></div></li>
+                        <li class="d-flex gap-3 mb-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-megaphone"></i></span>
+                            <div><strong>Announce and organise</strong><div class="small text-muted">Under <em>More</em>: publish announcements, manage categories and read the audit log.</div></div></li>
+                        <li class="d-flex gap-3"><span class="step-icon flex-shrink-0" style="width:40px;height:40px;font-size:1.1rem;margin:0"><i class="bi bi-bar-chart"></i></span>
+                            <div><strong>Watch the numbers</strong><div class="small text-muted">This overview, the <em>Workers</em> page and the satisfaction summary show how the city is doing. You have read-only access to complaints.</div></div></li>
+                    </ol>
+
+                    <p class="small text-muted mt-3 mb-0">Tip: use the moon/sun button for dark mode. You can open this guide again from <em>My profile</em>.</p>
+                </div>
+                <div class="modal-footer">
+                    <form th:action="@{/profile/welcome-done}" method="post" class="m-0">
+                        <button type="submit" class="btn btn-primary">Got it, let's start</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

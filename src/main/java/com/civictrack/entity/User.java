@@ -27,6 +27,9 @@ public class User extends BaseEntity {
     @Column(name = "enabled", nullable = false)
     private boolean enabled = true;
 
+    @Column(name = "welcome_seen", nullable = false)
+    private boolean welcomeSeen = false;
+
     protected User() {
         // required by JPA
     }
@@ -64,6 +67,18 @@ public class User extends BaseEntity {
 
     public Role getRole() {
         return role;
+    }
+
+    public boolean isWelcomeSeen() {
+        return welcomeSeen;
+    }
+
+    public void markWelcomeSeen() {
+        this.welcomeSeen = true;
+    }
+
+    public void resetWelcome() {
+        this.welcomeSeen = false;
     }
 
     public boolean isEnabled() {

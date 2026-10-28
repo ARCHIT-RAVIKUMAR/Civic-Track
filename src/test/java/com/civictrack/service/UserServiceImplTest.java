@@ -365,4 +365,17 @@ class UserServiceImplTest {
         assertEquals("keep@example.com", target.getEmail());
         assertEquals(Role.AUTHORITY, target.getRole());
     }
+
+    @Test
+    void welcomeGuideCanBeDismissedAndShownAgain() {
+        User user = userWithId("New", "new@example.com", Role.CITIZEN);
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        assertFalse(user.isWelcomeSeen());
+
+        service.setWelcomeSeen(user, true);
+        assertTrue(user.isWelcomeSeen());
+
+        service.setWelcomeSeen(user, false);
+        assertFalse(user.isWelcomeSeen());
+    }
 }

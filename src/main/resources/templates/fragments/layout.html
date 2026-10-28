@@ -45,13 +45,19 @@
                     <div class="px-3 py-2 fw-semibold border-bottom">Notifications</div>
                     <div class="px-3 py-3 text-muted small"
                          th:if="${recentNotifications == null or #lists.isEmpty(recentNotifications)}">You are all caught up.</div>
-                    <form class="m-0" method="post" th:each="n : ${recentNotifications}"
-                          th:action="@{/notifications/{id}/open(id=${n.id})}">
-                        <button type="submit" class="dropdown-item notif-item" th:classappend="${!n.read} ? 'fw-bold'">
-                            <span th:text="${n.title}">Title</span><br>
-                            <small class="text-muted fw-normal" th:text="${n.createdAtDisplay}">Date</small>
-                        </button>
-                    </form>
+                    <div class="d-flex align-items-start" data-notification th:each="n : ${recentNotifications}">
+                        <form class="m-0 flex-grow-1" method="post" th:action="@{/notifications/{id}/open(id=${n.id})}">
+                            <button type="submit" class="dropdown-item notif-item" th:classappend="${!n.read} ? 'fw-bold'">
+                                <span th:text="${n.title}">Title</span><br>
+                                <small class="text-muted fw-normal" th:text="${n.createdAtDisplay}">Date</small>
+                            </button>
+                        </form>
+                        <form class="m-0" method="post" data-ajax th:if="${!n.read}"
+                              th:action="@{/notifications/{id}/read(id=${n.id})}">
+                            <button type="submit" class="btn btn-sm btn-link text-secondary px-2" title="Mark as read"
+                                    aria-label="Mark as read"><i class="bi bi-check2-circle"></i></button>
+                        </form>
+                    </div>
                     <a class="dropdown-item text-center border-top small py-2" th:href="@{/notifications}">View all notifications</a>
                 </div>
             </div>
@@ -76,6 +82,8 @@
                     <a class="nav-link" th:href="@{/worker/dashboard}">My Assignments</a></li>
                 <li class="nav-item" sec:authorize="hasRole('FIELD_WORKER')">
                     <a class="nav-link" th:href="@{/worker/map}">Map</a></li>
+                <li class="nav-item" sec:authorize="hasRole('FIELD_WORKER')">
+                    <a class="nav-link" th:href="@{/worker/stats}">My stats</a></li>
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')">
                     <a class="nav-link" th:href="@{/admin/dashboard}">Overview</a></li>
                 <li class="nav-item" sec:authorize="hasRole('ADMIN')">
@@ -102,7 +110,7 @@
                     <a class="btn btn-light btn-sm" th:href="@{/register}">Register</a></li>
                 <li class="nav-item" sec:authorize="isAuthenticated()">
                     <a class="nav-link small" th:href="@{/profile}">
-                        <i class="bi bi-person-circle"></i> <span th:text="${currentUserName != null} ? ${currentUserName} : ${#authentication.name}">user</span></a></li>
+                        <i class="bi bi-person-circle"></i> <span th:text="${currentUser != null} ? ${currentUser.fullName} : ${#authentication.name}">user</span></a></li>
                 <li class="nav-item" sec:authorize="isAuthenticated()">
                     <form th:action="@{/logout}" method="post" class="d-inline">
                         <button type="submit" class="btn btn-outline-light btn-sm">Log out</button>
@@ -146,6 +154,7 @@
             <a sec:authorize="hasRole('AUTHORITY')" th:href="@{/workers/performance}"><i class="bi bi-people"></i>Workers</a>
             <a sec:authorize="hasRole('FIELD_WORKER')" th:href="@{/worker/dashboard}"><i class="bi bi-clipboard-check"></i>Jobs</a>
             <a sec:authorize="hasRole('FIELD_WORKER')" th:href="@{/worker/map}"><i class="bi bi-map"></i>Map</a>
+            <a sec:authorize="hasRole('FIELD_WORKER')" th:href="@{/worker/stats}"><i class="bi bi-graph-up"></i>My stats</a>
             <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/dashboard}"><i class="bi bi-speedometer2"></i>Overview</a>
             <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/users}"><i class="bi bi-people"></i>Users</a>
             <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin/audit}"><i class="bi bi-journal-text"></i>Audit</a>
@@ -159,7 +168,7 @@
             // Show a "please wait" state on submit buttons, so slow requests do not look frozen
             document.addEventListener('submit', function (e) {
                 var form = e.target;
-                if (e.defaultPrevented || form.hasAttribute('data-no-lock')) { return; }
+                if (e.defaultPrevented || form.hasAttribute('data-no-lock') || form.hasAttribute('data-ajax')) { return; }
                 var buttons = form.querySelectorAll('button[type="submit"]');
                 setTimeout(function () {
                     buttons.forEach(function (b) {
@@ -362,9 +371,34 @@
                         })
                         .catch(function () { });
                 };
+                window.ctPoll = poll;
                 setInterval(poll, 30000);
                 document.addEventListener('visibilitychange', function () { if (!document.hidden) { poll(); } });
             }
+            // "Mark as read" without opening the notification (background request, no page change)
+            document.addEventListener('submit', function (e) {
+                var form = e.target;
+                if (!form.hasAttribute || !form.hasAttribute('data-ajax')) { return; }
+                e.preventDefault();
+                var token = form.querySelector('input[name="_csrf"]');
+                fetch(form.action, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'fetch', 'X-CSRF-TOKEN': token ? token.value : '' }
+                }).then(function (response) {
+                    if (!response.ok) { form.submit(); return; }
+                    var item = form.closest('[data-notification]');
+                    if (item) {
+                        item.classList.remove('list-group-item-primary');
+                        item.querySelectorAll('.fw-bold').forEach(function (el) { el.classList.remove('fw-bold'); });
+                    }
+                    form.remove();
+                    if (window.ctPoll) { window.ctPoll(); }
+                }).catch(function () { form.submit(); });
+            });
+            // First-login welcome guide
+            var welcome = document.getElementById('welcomeModal');
+            if (welcome && window.bootstrap) { new bootstrap.Modal(welcome).show(); }
             // Success messages fade away by themselves
             document.querySelectorAll('.alert-success').forEach(function (alertBox) {
                 setTimeout(function () {

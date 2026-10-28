@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<body>
+<!-- Needs the model attribute: satisfaction -->
+<section th:fragment="satisfaction">
+    <div class="card shadow-sm mb-4" th:if="${satisfaction != null}">
+        <div class="card-body">
+            <h2 class="h6 mb-3"><i class="bi bi-emoji-smile"></i> Citizen satisfaction</h2>
+
+            <p class="text-muted mb-0" th:if="${satisfaction.totalRatings == 0}">
+                No feedback yet. Ratings appear here once citizens rate their resolved complaints.</p>
+
+            <div class="row g-4 align-items-center" th:if="${satisfaction.totalRatings > 0}">
+                <div class="col-md-3 text-center">
+                    <div class="display-5 fw-bold" th:text="${satisfaction.averageDisplay}">4.2</div>
+                    <div class="text-warning" aria-hidden="true">
+                        <i class="bi" th:each="i : ${#numbers.sequence(1, 5)}"
+                           th:classappend="${i <= satisfaction.roundedStars} ? 'bi-star-fill' : 'bi-star'"></i>
+                    </div>
+                    <div class="small text-muted">average of <span th:text="${satisfaction.totalRatings}">0</span> rating(s)</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="d-flex align-items-center gap-2 small mb-1" th:each="row : ${satisfaction.distribution}">
+                        <span class="text-nowrap" style="width: 2.6rem;"><span th:text="${row.stars}">5</span> <i class="bi bi-star-fill text-warning"></i></span>
+                        <div class="progress flex-grow-1" style="height: 8px;">
+                            <div class="progress-bar bg-warning" role="progressbar" th:style="'width: ' + ${row.percent} + '%'"></div>
+                        </div>
+                        <span class="text-muted text-end" style="width: 2rem;" th:text="${row.count}">0</span>
+                    </div>
+                </div>
+                <div class="col-md-5">
+                    <div class="small text-muted mb-1">By category</div>
+                    <div class="d-flex justify-content-between small border-bottom py-1" th:each="c : ${satisfaction.categories}">
+                        <span th:text="${c.name}">Category</span>
+                        <span><strong th:text="${c.averageDisplay}">4.0 / 5</strong>
+                            <span class="text-muted" th:text="'(' + ${c.count} + ')'">(1)</span></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+</body>
+</html>

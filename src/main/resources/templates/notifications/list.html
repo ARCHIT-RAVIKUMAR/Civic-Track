@@ -18,17 +18,22 @@
     </div>
 
     <div class="list-group shadow-sm" th:unless="${page.empty}">
-        <div class="list-group-item d-flex justify-content-between align-items-start gap-3"
+        <div class="list-group-item d-flex justify-content-between align-items-start gap-3" data-notification
              th:each="n : ${page.content}" th:classappend="${!n.read} ? 'list-group-item-primary'">
             <div>
                 <div th:classappend="${!n.read} ? 'fw-bold'" th:text="${n.title}">Title</div>
                 <div class="small" th:text="${n.message}">Message</div>
                 <div class="small text-muted" th:text="${n.createdAtDisplay}">Date</div>
             </div>
-            <form th:action="@{/notifications/{id}/open(id=${n.id})}" method="post">
-                <button type="submit" class="btn btn-sm btn-outline-primary"
-                        th:text="${n.complaint != null} ? 'Open' : 'Mark read'">Open</button>
-            </form>
+            <div class="d-flex gap-2 flex-shrink-0">
+                <form th:if="${n.complaint != null}" th:action="@{/notifications/{id}/open(id=${n.id})}" method="post">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Open</button>
+                </form>
+                <form th:if="${!n.read}" data-ajax th:action="@{/notifications/{id}/read(id=${n.id})}" method="post">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Mark as read without opening it">
+                        <i class="bi bi-check2"></i> Mark read</button>
+                </form>
+            </div>
         </div>
     </div>
 

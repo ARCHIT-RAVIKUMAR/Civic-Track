@@ -28,6 +28,9 @@ public interface UserService {
 
     void updateOwnName(User user, String fullName);
 
+    /** Marks the first-login welcome guide as seen (true) or shows it again next time (false). */
+    void setWelcomeSeen(User user, boolean seen);
+
     long countByRole(Role role);
 
     void changeRole(UUID userId, Role newRole, User admin);

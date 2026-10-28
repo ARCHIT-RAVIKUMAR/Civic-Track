@@ -26,13 +26,14 @@ public class GlobalModelAttributes {
         this.userService = userService;
     }
 
-    @ModelAttribute("currentUserName")
-    public String currentUserName(Authentication authentication) {
+    /** The logged-in user (for the navbar name and the first-login welcome guide). Null for visitors. */
+    @ModelAttribute("currentUser")
+    public com.civictrack.entity.User currentUser(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return null;
         }
         try {
-            return userService.getByEmail(authentication.getName()).getFullName();
+            return userService.getByEmail(authentication.getName());
         } catch (RuntimeException ex) {
             return null; // the navbar falls back to the e-mail address
         }

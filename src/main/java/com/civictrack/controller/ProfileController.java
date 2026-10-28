@@ -34,6 +34,20 @@ public class ProfileController {
         return "profile/profile";
     }
 
+    /** "Got it" on the welcome guide: it will not appear again. */
+    @PostMapping("/welcome-done")
+    public String welcomeDone(Authentication auth) {
+        userService.setWelcomeSeen(userService.getByEmail(auth.getName()), true);
+        return "redirect:/dashboard";
+    }
+
+    /** Lets a user see the welcome guide again. */
+    @PostMapping("/welcome-reset")
+    public String welcomeReset(Authentication auth) {
+        userService.setWelcomeSeen(userService.getByEmail(auth.getName()), false);
+        return "redirect:/dashboard";
+    }
+
     @PostMapping("/name")
     public String updateName(@RequestParam String fullName, Authentication auth, RedirectAttributes redirect) {
         User user = userService.getByEmail(auth.getName());

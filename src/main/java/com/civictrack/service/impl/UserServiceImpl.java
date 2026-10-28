@@ -133,6 +133,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public void setWelcomeSeen(User user, boolean seen) {
+        User target = getById(user.getId());
+        if (seen) {
+            target.markWelcomeSeen();
+        } else {
+            target.resetWelcome();
+        }
+        userRepository.save(target);
+    }
+
+    @Override
     public void updateOwnName(User user, String fullName) {
         if (fullName == null || fullName.isBlank()) {
             throw new BusinessRuleException("Name cannot be empty.");

@@ -3,6 +3,7 @@ package com.civictrack.security;
 import com.civictrack.entity.Announcement;
 import com.civictrack.entity.Category;
 import com.civictrack.entity.Complaint;
+import com.civictrack.entity.Notification;
 import com.civictrack.entity.User;
 import com.civictrack.enums.ActivityType;
 import com.civictrack.repository.ActivityLogRepository;
@@ -10,6 +11,7 @@ import com.civictrack.enums.AnnouncementSeverity;
 import com.civictrack.repository.AnnouncementRepository;
 import com.civictrack.repository.CategoryRepository;
 import com.civictrack.repository.ComplaintRepository;
+import com.civictrack.repository.NotificationRepository;
 import com.civictrack.enums.Role;
 import com.civictrack.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.formLogin;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestBuilders.logout;
@@ -47,6 +50,7 @@ class SecurityAccessTest {
     @Autowired private ActivityLogRepository activityLogRepository;
     @Autowired private CategoryRepository categoryRepository;
     @Autowired private ComplaintRepository complaintRepository;
+    @Autowired private NotificationRepository notificationRepository;
     @Autowired private AnnouncementRepository announcementRepository;
 
     @Test
@@ -595,5 +599,89 @@ class SecurityAccessTest {
                         .string(org.hamcrest.Matchers.containsString("Asha Kumar Full Name")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                         .string(org.hamcrest.Matchers.containsString("data-refresh")));
+    }
+
+    @Test
+    @WithMockUser(username = "mystats@test.com", roles = "FIELD_WORKER")
+    void workerCanOpenTheirOwnStatsPage() throws Exception {
+        userRepository.save(new User("Stats Worker", "mystats@test.com", passwordEncoder.encode("Passw0rd1"), Role.FIELD_WORKER));
+
+        mockMvc.perform(get("/worker/stats")).andExpect(status().isOk()).andExpect(view().name("worker/stats"));
+    }
+
+    @Test
+    @WithMockUser(roles = "AUTHORITY")
+    void authorityCannotOpenTheWorkerStatsPage() throws Exception {
+        mockMvc.perform(get("/worker/stats")).andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = "ADMIN")
+    void satisfactionSummaryIsOnTheAdminOverview() throws Exception {
+        mockMvc.perform(get("/admin/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeExists("satisfaction"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("Citizen satisfaction")));
+    }
+
+    @Test
+    @WithMockUser(username = "newbie@test.com", roles = "CITIZEN")
+    void newUsersSeeTheWelcomeGuideUntilTheyDismissIt() throws Exception {
+        User newbie = userRepository.save(new User("Newbie", "newbie@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+
+        mockMvc.perform(get("/citizen/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.containsString("id=\"welcomeModal\"")));
+
+        mockMvc.perform(post("/profile/welcome-done").with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/dashboard"));
+        assertTrue(userRepository.findById(newbie.getId()).orElseThrow().isWelcomeSeen());
+
+        mockMvc.perform(get("/citizen/dashboard"))
+                .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
+                        .string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("id=\"welcomeModal\""))));
+
+        mockMvc.perform(post("/profile/welcome-reset").with(csrf())).andExpect(status().is3xxRedirection());
+        assertFalse(userRepository.findById(newbie.getId()).orElseThrow().isWelcomeSeen());
+    }
+
+    @Test
+    @WithMockUser(username = "reader@test.com", roles = "CITIZEN")
+    void notificationCanBeMarkedReadWithoutOpeningIt() throws Exception {
+        User reader = userRepository.save(new User("Reader", "reader@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+        Notification n = notificationRepository.save(new Notification(reader, null, "Hello", "Something happened"));
+        assertFalse(n.isRead());
+
+        mockMvc.perform(post("/notifications/" + n.getId() + "/read").with(csrf()).header("X-Requested-With", "fetch"))
+                .andExpect(status().isNoContent());
+
+        assertTrue(notificationRepository.findById(n.getId()).orElseThrow().isRead());
+    }
+
+    @Test
+    @WithMockUser(username = "thief@test.com", roles = "CITIZEN")
+    void nobodyCanMarkSomeoneElsesNotificationRead() throws Exception {
+        userRepository.save(new User("Thief", "thief@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+        User owner = userRepository.save(new User("Owner", "owner@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+        Notification n = notificationRepository.save(new Notification(owner, null, "Private", "For the owner only"));
+
+        mockMvc.perform(post("/notifications/" + n.getId() + "/read").with(csrf()).header("X-Requested-With", "fetch"))
+                .andExpect(status().isForbidden());
+        assertFalse(notificationRepository.findById(n.getId()).orElseThrow().isRead());
+    }
+
+    @Test
+    @WithMockUser(username = "plain@test.com", roles = "CITIZEN")
+    void markReadWithoutJavascriptRedirectsBackToTheList() throws Exception {
+        User plain = userRepository.save(new User("Plain", "plain@test.com", passwordEncoder.encode("Passw0rd1"), Role.CITIZEN));
+        Notification n = notificationRepository.save(new Notification(plain, null, "Hi", "Message"));
+
+        mockMvc.perform(post("/notifications/" + n.getId() + "/read").with(csrf()))
+                .andExpect(status().isSeeOther())
+                .andExpect(redirectedUrl("/notifications"));
     }
 }

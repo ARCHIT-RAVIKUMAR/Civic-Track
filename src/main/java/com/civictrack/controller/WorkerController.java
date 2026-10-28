@@ -5,6 +5,7 @@ import com.civictrack.entity.User;
 import com.civictrack.exception.BusinessRuleException;
 import com.civictrack.service.ComplaintService;
 import com.civictrack.service.UserService;
+import com.civictrack.service.WorkerStatsService;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -28,10 +29,21 @@ public class WorkerController {
 
     private final UserService userService;
     private final ComplaintService complaintService;
+    private final WorkerStatsService workerStatsService;
 
-    public WorkerController(UserService userService, ComplaintService complaintService) {
+    public WorkerController(UserService userService, ComplaintService complaintService,
+                            WorkerStatsService workerStatsService) {
         this.userService = userService;
         this.complaintService = complaintService;
+        this.workerStatsService = workerStatsService;
+    }
+
+    /** A worker's own results: jobs, speed, ratings and what citizens said. */
+    @GetMapping("/stats")
+    public String stats(Authentication auth, Model model) {
+        User worker = userService.getByEmail(auth.getName());
+        model.addAttribute("stats", workerStatsService.myStats(worker));
+        return "worker/stats";
     }
 
     @GetMapping("/dashboard")

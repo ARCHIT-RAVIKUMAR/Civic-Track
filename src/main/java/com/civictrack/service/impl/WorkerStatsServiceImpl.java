@@ -54,6 +54,14 @@ public class WorkerStatsServiceImpl implements WorkerStatsService {
         return result;
     }
 
+    @Override
+    public WorkerStats myStats(User worker) {
+        if (worker == null || !worker.hasRole(Role.FIELD_WORKER)) {
+            throw new ForbiddenOperationException("Only field workers have a personal statistics page.");
+        }
+        return statsFor(worker);
+    }
+
     private WorkerStats statsFor(User worker) {
         long open = 0;
         long overdue = 0;
@@ -77,6 +85,7 @@ public class WorkerStatsServiceImpl implements WorkerStatsService {
         int timed = 0;
         double ratingSum = 0;
         int ratings = 0;
+        List<WorkerStats.FeedbackNote> notes = new ArrayList<>();
         for (StatusHistory done : completions.values()) {
             Complaint complaint = done.getComplaint();
             LocalDateTime assignedAt = null;
@@ -94,11 +103,16 @@ public class WorkerStatsServiceImpl implements WorkerStatsService {
             if (feedback.isPresent()) {
                 ratingSum += feedback.get().getRating();
                 ratings++;
+                if (notes.size() < 10) {
+                    Feedback fb = feedback.get();
+                    notes.add(new WorkerStats.FeedbackNote(fb.getRating(), fb.getComments(), complaint.getTitle(),
+                            complaint.getReferenceNumber(), fb.getCreatedAtDisplay()));
+                }
             }
         }
         return new WorkerStats(worker, open, overdue, completions.size(),
                 timed == 0 ? null : totalMinutes / timed,
                 ratings == 0 ? null : ratingSum / ratings,
-                ratings);
+                ratings, notes);
     }
 }

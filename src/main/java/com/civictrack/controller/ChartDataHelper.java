@@ -2,6 +2,7 @@ package com.civictrack.controller;
 
 import com.civictrack.enums.ComplaintStatus;
 import com.civictrack.service.ComplaintService;
+import com.civictrack.service.SatisfactionService;
 import org.springframework.stereotype.Component;
 import org.springframework.ui.Model;
 
@@ -14,9 +15,11 @@ import java.util.Map;
 public class ChartDataHelper {
 
     private final ComplaintService complaintService;
+    private final SatisfactionService satisfactionService;
 
-    public ChartDataHelper(ComplaintService complaintService) {
+    public ChartDataHelper(ComplaintService complaintService, SatisfactionService satisfactionService) {
         this.complaintService = complaintService;
+        this.satisfactionService = satisfactionService;
     }
 
     public void addTo(Model model) {
@@ -50,5 +53,6 @@ public class ChartDataHelper {
         model.addAttribute("categoryLabels", categoryLabels);
         model.addAttribute("categoryValues", categoryValues);
         model.addAttribute("chartHasData", total > 0);
+        model.addAttribute("satisfaction", satisfactionService.summary());
     }
 }

@@ -2,10 +2,49 @@ package com.civictrack.service;
 
 import com.civictrack.entity.User;
 
+import java.util.List;
 import java.util.Locale;
 
-/** Numbers about one field worker, shown on the worker performance page. */
+/** Numbers about one field worker, shown on the worker performance and "my stats" pages. */
 public class WorkerStats {
+
+    /** What a citizen said about a job the worker completed. */
+    public static class FeedbackNote {
+        private final int rating;
+        private final String comments;
+        private final String complaintTitle;
+        private final String referenceNumber;
+        private final String dateDisplay;
+
+        public FeedbackNote(int rating, String comments, String complaintTitle, String referenceNumber,
+                            String dateDisplay) {
+            this.rating = rating;
+            this.comments = comments;
+            this.complaintTitle = complaintTitle;
+            this.referenceNumber = referenceNumber;
+            this.dateDisplay = dateDisplay;
+        }
+
+        public int getRating() {
+            return rating;
+        }
+
+        public String getComments() {
+            return comments;
+        }
+
+        public String getComplaintTitle() {
+            return complaintTitle;
+        }
+
+        public String getReferenceNumber() {
+            return referenceNumber;
+        }
+
+        public String getDateDisplay() {
+            return dateDisplay;
+        }
+    }
 
     private final User worker;
     private final long openJobs;
@@ -14,9 +53,16 @@ public class WorkerStats {
     private final Double averageMinutes;
     private final Double averageRating;
     private final int ratingCount;
+    private final List<FeedbackNote> recentFeedback;
 
     public WorkerStats(User worker, long openJobs, long overdueJobs, long completedJobs,
                        Double averageMinutes, Double averageRating, int ratingCount) {
+        this(worker, openJobs, overdueJobs, completedJobs, averageMinutes, averageRating, ratingCount, List.of());
+    }
+
+    public WorkerStats(User worker, long openJobs, long overdueJobs, long completedJobs,
+                       Double averageMinutes, Double averageRating, int ratingCount,
+                       List<FeedbackNote> recentFeedback) {
         this.worker = worker;
         this.openJobs = openJobs;
         this.overdueJobs = overdueJobs;
@@ -24,6 +70,7 @@ public class WorkerStats {
         this.averageMinutes = averageMinutes;
         this.averageRating = averageRating;
         this.ratingCount = ratingCount;
+        this.recentFeedback = recentFeedback;
     }
 
     public User getWorker() {
@@ -52,6 +99,10 @@ public class WorkerStats {
 
     public int getRatingCount() {
         return ratingCount;
+    }
+
+    public List<FeedbackNote> getRecentFeedback() {
+        return recentFeedback;
     }
 
     /** "45 min", "5.5 h" or "2.3 days"; "-" when there is no data yet. */
